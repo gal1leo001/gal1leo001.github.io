@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ANZURA — Intro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;1,6..72,300;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #f1ede4;
+      --paper-2: #e8e3d6;
+      --ink: #14110d;
+      --ink-2: #2a251e;
+      --rule: #28231b;
+      --muted: #6b6458;
+      --accent: #b8551f;     /* burnt amber — copper / ore */
+      --accent-2: #d6a44a;   /* gold */
+      --serif: 'Newsreader', Georgia, serif;
+      --sans: 'Inter Tight', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background: #050505;
+      font-family: var(--sans);
+      color: var(--ink);
+      overflow: hidden;
+      width: 100%; height: 100%;
+    }
+    #root { width: 100vw; height: 100vh; }
+
+    /* film-grain overlay so the paper feels printed */
+    .grain {
+      position: absolute; inset: 0;
+      pointer-events: none;
+      mix-blend-mode: multiply;
+      opacity: 0.18;
+      background-image:
+        radial-gradient(rgba(0,0,0,0.35) 1px, transparent 1px),
+        radial-gradient(rgba(0,0,0,0.25) 1px, transparent 1px);
+      background-size: 3px 3px, 5px 5px;
+      background-position: 0 0, 1px 1px;
+    }
+    /* subtle vignette */
+    .vignette {
+      position: absolute; inset: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(20,17,13,0.18) 100%);
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="animations.jsx"></script>
+  <script type="text/babel" src="intro-scenes.jsx"></script>
+  <script type="text/babel" src="intro-app.jsx"></script>
+</body>
+</html>
