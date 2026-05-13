@@ -1,0 +1,2316 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"/>
+<title>ANZURA · InSAR Intro</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font-family: 'Inter', system-ui, sans-serif; color: #fff; }
+  #root { position: fixed; inset: 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel">
+
+// animations.jsx
+// Reusable animation starter: Stage, Timeline, Sprite, easing helpers.
+// Usage (in an HTML file that loads React + Babel):
+//
+//   <Stage width={1280} height={720} duration={10} background="#f6f4ef">
+//     <MyScene />
+//   </Stage>
+//
+// Inside <Stage>, any child can call useTime() to read the current
+// playhead (seconds). Or wrap content in <Sprite start={1} end={4}>...</Sprite>
+// to only render during that window -- children receive a `localTime` and
+// `progress` via the useSprite() hook.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Easing functions (hand-rolled, Popmotion-style) ─────────────────────────
+// All easings take t ∈ [0,1] and return eased t ∈ [0,1] (may overshoot for back/elastic).
+const Easing = {
+  linear: (t) => t,
+
+  // Quad
+  easeInQuad:    (t) => t * t,
+  easeOutQuad:   (t) => t * (2 - t),
+  easeInOutQuad: (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t),
+
+  // Cubic
+  easeInCubic:    (t) => t * t * t,
+  easeOutCubic:   (t) => (--t) * t * t + 1,
+  easeInOutCubic: (t) => (t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1),
+
+  // Quart
+  easeInQuart:    (t) => t * t * t * t,
+  easeOutQuart:   (t) => 1 - (--t) * t * t * t,
+  easeInOutQuart: (t) => (t < 0.5 ? 8 * t * t * t * t : 1 - 8 * (--t) * t * t * t),
+
+  // Expo
+  easeInExpo:  (t) => (t === 0 ? 0 : Math.pow(2, 10 * (t - 1))),
+  easeOutExpo: (t) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t)),
+  easeInOutExpo: (t) => {
+    if (t === 0) return 0;
+    if (t === 1) return 1;
+    if (t < 0.5) return 0.5 * Math.pow(2, 20 * t - 10);
+    return 1 - 0.5 * Math.pow(2, -20 * t + 10);
+  },
+
+  // Sine
+  easeInSine:    (t) => 1 - Math.cos((t * Math.PI) / 2),
+  easeOutSine:   (t) => Math.sin((t * Math.PI) / 2),
+  easeInOutSine: (t) => -(Math.cos(Math.PI * t) - 1) / 2,
+
+  // Back (overshoot)
+  easeOutBack: (t) => {
+    const c1 = 1.70158, c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  },
+  easeInBack: (t) => {
+    const c1 = 1.70158, c3 = c1 + 1;
+    return c3 * t * t * t - c1 * t * t;
+  },
+  easeInOutBack: (t) => {
+    const c1 = 1.70158, c2 = c1 * 1.525;
+    return t < 0.5
+      ? (Math.pow(2 * t, 2) * ((c2 + 1) * 2 * t - c2)) / 2
+      : (Math.pow(2 * t - 2, 2) * ((c2 + 1) * (t * 2 - 2) + c2) + 2) / 2;
+  },
+
+  // Elastic
+  easeOutElastic: (t) => {
+    const c4 = (2 * Math.PI) / 3;
+    if (t === 0) return 0;
+    if (t === 1) return 1;
+    return Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+  },
+};
+
+// ── Core interpolation helpers ──────────────────────────────────────────────
+
+// Clamp a value to [min, max]
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+// interpolate([0, 0.5, 1], [0, 100, 50], ease?) -> fn(t)
+// Popmotion-style: linearly maps t across input keyframes to output values,
+// with optional easing per segment (single fn or array of fns).
+function interpolate(input, output, ease = Easing.linear) {
+  return (t) => {
+    if (t <= input[0]) return output[0];
+    if (t >= input[input.length - 1]) return output[output.length - 1];
+    for (let i = 0; i < input.length - 1; i++) {
+      if (t >= input[i] && t <= input[i + 1]) {
+        const span = input[i + 1] - input[i];
+        const local = span === 0 ? 0 : (t - input[i]) / span;
+        const easeFn = Array.isArray(ease) ? (ease[i] || Easing.linear) : ease;
+        const eased = easeFn(local);
+        return output[i] + (output[i + 1] - output[i]) * eased;
+      }
+    }
+    return output[output.length - 1];
+  };
+}
+
+// animate({from, to, start, end, ease})(t) — simpler single-segment tween.
+// Returns `from` before `start`, `to` after `end`.
+function animate({ from = 0, to = 1, start = 0, end = 1, ease = Easing.easeInOutCubic }) {
+  return (t) => {
+    if (t <= start) return from;
+    if (t >= end) return to;
+    const local = (t - start) / (end - start);
+    return from + (to - from) * ease(local);
+  };
+}
+
+// ── Timeline context ────────────────────────────────────────────────────────
+
+const TimelineContext = React.createContext({ time: 0, duration: 10, playing: false });
+
+const useTime = () => React.useContext(TimelineContext).time;
+const useTimeline = () => React.useContext(TimelineContext);
+
+// ── Sprite ──────────────────────────────────────────────────────────────────
+// Renders children only when the playhead is inside [start, end]. Provides
+// a sub-context with `localTime` (seconds since start) and `progress` (0..1).
+//
+//   <Sprite start={2} end={5}>
+//     {({ localTime, progress }) => <Thing x={progress * 100} />}
+//   </Sprite>
+//
+// Or as a plain wrapper — children can call useSprite() themselves.
+
+const SpriteContext = React.createContext({ localTime: 0, progress: 0, duration: 0 });
+const useSprite = () => React.useContext(SpriteContext);
+
+function Sprite({ start = 0, end = Infinity, children, keepMounted = false }) {
+  const { time } = useTimeline();
+  const visible = time >= start && time <= end;
+  if (!visible && !keepMounted) return null;
+
+  const duration = end - start;
+  const localTime = Math.max(0, time - start);
+  const progress = duration > 0 && isFinite(duration)
+    ? clamp(localTime / duration, 0, 1)
+    : 0;
+
+  const value = { localTime, progress, duration, visible };
+
+  return (
+    <SpriteContext.Provider value={value}>
+      {typeof children === 'function' ? children(value) : children}
+    </SpriteContext.Provider>
+  );
+}
+
+// ── Sample sprite components ────────────────────────────────────────────────
+
+// TextSprite: fades/slides text in on entry, holds, then fades out on exit.
+// Props: text, x, y, size, color, font, entryDur, exitDur, align
+function TextSprite({
+  text,
+  x = 0, y = 0,
+  size = 48,
+  color = '#111',
+  font = 'Inter, system-ui, sans-serif',
+  weight = 600,
+  entryDur = 0.45,
+  exitDur = 0.35,
+  entryEase = Easing.easeOutBack,
+  exitEase = Easing.easeInCubic,
+  align = 'left',
+  letterSpacing = '-0.01em',
+}) {
+  const { localTime, duration } = useSprite();
+  const exitStart = Math.max(0, duration - exitDur);
+
+  let opacity = 1;
+  let ty = 0;
+
+  if (localTime < entryDur) {
+    const t = entryEase(clamp(localTime / entryDur, 0, 1));
+    opacity = t;
+    ty = (1 - t) * 16;
+  } else if (localTime > exitStart) {
+    const t = exitEase(clamp((localTime - exitStart) / exitDur, 0, 1));
+    opacity = 1 - t;
+    ty = -t * 8;
+  }
+
+  const translateX = align === 'center' ? '-50%' : align === 'right' ? '-100%' : '0';
+
+  return (
+    <div style={{
+      position: 'absolute',
+      left: x, top: y,
+      transform: `translate(${translateX}, ${ty}px)`,
+      opacity,
+      fontFamily: font,
+      fontSize: size,
+      fontWeight: weight,
+      color,
+      letterSpacing,
+      whiteSpace: 'pre',
+      lineHeight: 1.1,
+      willChange: 'transform, opacity',
+    }}>
+      {text}
+    </div>
+  );
+}
+
+// ImageSprite: scales + fades in; optional Ken Burns drift during hold.
+function ImageSprite({
+  src,
+  x = 0, y = 0,
+  width = 400, height = 300,
+  entryDur = 0.6,
+  exitDur = 0.4,
+  kenBurns = false,
+  kenBurnsScale = 1.08,
+  radius = 12,
+  fit = 'cover',
+  placeholder = null, // {label: string} for striped placeholder
+}) {
+  const { localTime, duration } = useSprite();
+  const exitStart = Math.max(0, duration - exitDur);
+
+  let opacity = 1;
+  let scale = 1;
+
+  if (localTime < entryDur) {
+    const t = Easing.easeOutCubic(clamp(localTime / entryDur, 0, 1));
+    opacity = t;
+    scale = 0.96 + 0.04 * t;
+  } else if (localTime > exitStart) {
+    const t = Easing.easeInCubic(clamp((localTime - exitStart) / exitDur, 0, 1));
+    opacity = 1 - t;
+    scale = (kenBurns ? kenBurnsScale : 1) + 0.02 * t;
+  } else if (kenBurns) {
+    const holdSpan = exitStart - entryDur;
+    const holdT = holdSpan > 0 ? (localTime - entryDur) / holdSpan : 0;
+    scale = 1 + (kenBurnsScale - 1) * holdT;
+  }
+
+  const content = placeholder ? (
+    <div style={{
+      width: '100%', height: '100%',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'repeating-linear-gradient(135deg, #e9e6df 0 10px, #dcd8cf 10px 20px)',
+      color: '#6b6458',
+      fontFamily: 'JetBrains Mono, ui-monospace, monospace',
+      fontSize: 13,
+      letterSpacing: '0.04em',
+      textTransform: 'uppercase',
+    }}>
+      {placeholder.label || 'image'}
+    </div>
+  ) : (
+    <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: fit, display: 'block' }} />
+  );
+
+  return (
+    <div style={{
+      position: 'absolute',
+      left: x, top: y,
+      width, height,
+      opacity,
+      transform: `scale(${scale})`,
+      transformOrigin: 'center',
+      borderRadius: radius,
+      overflow: 'hidden',
+      willChange: 'transform, opacity',
+    }}>
+      {content}
+    </div>
+  );
+}
+
+// RectSprite: simple rectangle that animates position/size/color via props.
+// Useful demo primitive — takes a `render` fn for per-frame customization.
+function RectSprite({
+  x = 0, y = 0,
+  width = 100, height = 100,
+  color = '#111',
+  radius = 8,
+  entryDur = 0.4,
+  exitDur = 0.3,
+  render, // optional: (ctx) => style overrides
+}) {
+  const spriteCtx = useSprite();
+  const { localTime, duration } = spriteCtx;
+  const exitStart = Math.max(0, duration - exitDur);
+
+  let opacity = 1;
+  let scale = 1;
+
+  if (localTime < entryDur) {
+    const t = Easing.easeOutBack(clamp(localTime / entryDur, 0, 1));
+    opacity = clamp(localTime / entryDur, 0, 1);
+    scale = 0.4 + 0.6 * t;
+  } else if (localTime > exitStart) {
+    const t = Easing.easeInQuad(clamp((localTime - exitStart) / exitDur, 0, 1));
+    opacity = 1 - t;
+    scale = 1 - 0.15 * t;
+  }
+
+  const overrides = render ? render(spriteCtx) : {};
+
+  return (
+    <div style={{
+      position: 'absolute',
+      left: x, top: y,
+      width, height,
+      background: color,
+      borderRadius: radius,
+      opacity,
+      transform: `scale(${scale})`,
+      transformOrigin: 'center',
+      willChange: 'transform, opacity',
+      ...overrides,
+    }} />
+  );
+}
+
+
+function Stage({
+  width = 1280,
+  height = 720,
+  duration = 10,
+  background = '#f6f4ef',
+  fps = 60,
+  loop = true,
+  autoplay = true,
+  controls = true,
+  persistKey = 'animstage',
+  children,
+}) {
+  const [time, setTime] = React.useState(() => {
+    try {
+      const v = parseFloat(localStorage.getItem(persistKey + ':t') || '0');
+      return isFinite(v) ? clamp(v, 0, duration) : 0;
+    } catch { return 0; }
+  });
+  const [playing, setPlaying] = React.useState(autoplay);
+  const [hoverTime, setHoverTime] = React.useState(null);
+  const [scale, setScale] = React.useState(1);
+
+  const stageRef = React.useRef(null);
+  const canvasRef = React.useRef(null);
+  const rafRef = React.useRef(null);
+  const lastTsRef = React.useRef(null);
+
+  // Persist playhead
+  React.useEffect(() => {
+    try { localStorage.setItem(persistKey + ':t', String(time)); } catch {}
+  }, [time, persistKey]);
+
+  // Auto-scale to fit viewport
+  React.useEffect(() => {
+    if (!stageRef.current) return;
+    const el = stageRef.current;
+    const measure = () => {
+      const barH = controls ? 44 : 0; // playback bar height
+      const s = Math.min(
+        el.clientWidth / width,
+        (el.clientHeight - barH) / height
+      );
+      setScale(Math.max(0.05, s));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [width, height, controls]);
+
+  // Animation loop
+  React.useEffect(() => {
+    if (!playing) {
+      lastTsRef.current = null;
+      return;
+    }
+    const step = (ts) => {
+      if (lastTsRef.current == null) lastTsRef.current = ts;
+      const dt = (ts - lastTsRef.current) / 1000;
+      lastTsRef.current = ts;
+      setTime((t) => {
+        let next = t + dt;
+        if (next >= duration) {
+          if (loop) next = next % duration;
+          else { next = duration; setPlaying(false); }
+        }
+        return next;
+      });
+      rafRef.current = requestAnimationFrame(step);
+    };
+    rafRef.current = requestAnimationFrame(step);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      lastTsRef.current = null;
+    };
+  }, [playing, duration, loop]);
+
+  // Keyboard: space = play/pause, ← → = seek
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setPlaying(p => !p);
+      } else if (e.code === 'ArrowLeft') {
+        setTime(t => clamp(t - (e.shiftKey ? 1 : 0.1), 0, duration));
+      } else if (e.code === 'ArrowRight') {
+        setTime(t => clamp(t + (e.shiftKey ? 1 : 0.1), 0, duration));
+      } else if (e.key === '0' || e.code === 'Home') {
+        setTime(0);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [duration]);
+
+  const displayTime = hoverTime != null ? hoverTime : time;
+
+  const ctxValue = React.useMemo(
+    () => ({ time: displayTime, duration, playing, setTime, setPlaying }),
+    [displayTime, duration, playing]
+  );
+
+  return (
+    <div
+      ref={stageRef}
+      style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center',
+        background: '#0a0a0a',
+        fontFamily: 'Inter, system-ui, sans-serif',
+      }}
+    >
+      {/* Canvas area — vertically centered in remaining space */}
+      <div style={{
+        flex: 1,
+        width: '100%',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        overflow: 'hidden',
+        minHeight: 0,
+      }}>
+        <div
+          ref={canvasRef}
+          style={{
+            width, height,
+            background,
+            position: 'relative',
+            transform: `scale(${scale})`,
+            transformOrigin: 'center',
+            flexShrink: 0,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+            overflow: 'hidden',
+          }}
+        >
+          <TimelineContext.Provider value={ctxValue}>
+            {children}
+          </TimelineContext.Provider>
+        </div>
+      </div>
+
+      {controls && (
+        <PlaybackBar
+          time={displayTime}
+          actualTime={time}
+          duration={duration}
+          playing={playing}
+          onPlayPause={() => setPlaying(p => !p)}
+          onReset={() => { setTime(0); }}
+          onSeek={(t) => setTime(t)}
+          onHover={(t) => setHoverTime(t)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Playback bar ────────────────────────────────────────────────────────────
+// Play/pause, return-to-begin, scrub track, time display.
+// Uses fixed-width time fields so layout doesn't thrash.
+
+function PlaybackBar({ time, duration, playing, onPlayPause, onReset, onSeek, onHover }) {
+  const trackRef = React.useRef(null);
+  const [dragging, setDragging] = React.useState(false);
+
+  const timeFromEvent = React.useCallback((e) => {
+    const rect = trackRef.current.getBoundingClientRect();
+    const x = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+    return x * duration;
+  }, [duration]);
+
+  const onTrackMove = (e) => {
+    if (!trackRef.current) return;
+    const t = timeFromEvent(e);
+    if (dragging) {
+      onSeek(t);
+    } else {
+      onHover(t);
+    }
+  };
+
+  const onTrackLeave = () => {
+    if (!dragging) onHover(null);
+  };
+
+  const onTrackDown = (e) => {
+    setDragging(true);
+    const t = timeFromEvent(e);
+    onSeek(t);
+    onHover(null);
+  };
+
+  React.useEffect(() => {
+    if (!dragging) return;
+    const onUp = () => setDragging(false);
+    const onMove = (e) => {
+      if (!trackRef.current) return;
+      const t = timeFromEvent(e);
+      onSeek(t);
+    };
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('mousemove', onMove);
+    return () => {
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('mousemove', onMove);
+    };
+  }, [dragging, timeFromEvent, onSeek]);
+
+  const pct = duration > 0 ? (time / duration) * 100 : 0;
+  const fmt = (t) => {
+    const total = Math.max(0, t);
+    const m = Math.floor(total / 60);
+    const s = Math.floor(total % 60);
+    const cs = Math.floor((total * 100) % 100);
+    return `${String(m).padStart(1, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
+  };
+
+  const mono = 'JetBrains Mono, ui-monospace, SFMono-Regular, monospace';
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: '8px 16px',
+      background: 'rgba(20,20,20,0.92)',
+      borderTop: '1px solid rgba(255,255,255,0.08)',
+      width: '100%',
+      maxWidth: 680,
+      alignSelf: 'center',
+
+      borderRadius: 8,
+      color: '#f6f4ef',
+      fontFamily: 'Inter, system-ui, sans-serif',
+      userSelect: 'none',
+      flexShrink: 0,
+    }}>
+      <IconButton onClick={onReset} title="Return to start (0)">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M3 2v10M12 2L5 7l7 5V2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round"/>
+        </svg>
+      </IconButton>
+      <IconButton onClick={onPlayPause} title="Play/pause (space)">
+        {playing ? (
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="3" y="2" width="3" height="10" fill="currentColor"/>
+            <rect x="8" y="2" width="3" height="10" fill="currentColor"/>
+          </svg>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3 2l9 5-9 5V2z" fill="currentColor"/>
+          </svg>
+        )}
+      </IconButton>
+
+      {/* Current time: fixed width so it doesn't thrash */}
+      <div style={{
+        fontFamily: mono,
+        fontSize: 12,
+        fontVariantNumeric: 'tabular-nums',
+        width: 64, textAlign: 'right',
+        color: '#f6f4ef',
+      }}>
+        {fmt(time)}
+      </div>
+
+      {/* Scrub track */}
+      <div
+        ref={trackRef}
+        onMouseMove={onTrackMove}
+        onMouseLeave={onTrackLeave}
+        onMouseDown={onTrackDown}
+        style={{
+          flex: 1,
+          height: 22,
+          position: 'relative',
+          cursor: 'pointer',
+          display: 'flex', alignItems: 'center',
+        }}
+      >
+        <div style={{
+          position: 'absolute',
+          left: 0, right: 0, height: 4,
+          background: 'rgba(255,255,255,0.12)',
+          borderRadius: 2,
+        }}/>
+        <div style={{
+          position: 'absolute',
+          left: 0, width: `${pct}%`, height: 4,
+          background: 'oklch(72% 0.12 250)',
+          borderRadius: 2,
+        }}/>
+        <div style={{
+          position: 'absolute',
+          left: `${pct}%`, top: '50%',
+          width: 12, height: 12,
+          marginLeft: -6, marginTop: -6,
+          background: '#fff',
+          borderRadius: 6,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.4)',
+        }}/>
+      </div>
+
+      {/* Duration: fixed width */}
+      <div style={{
+        fontFamily: mono,
+        fontSize: 12,
+        fontVariantNumeric: 'tabular-nums',
+        width: 64, textAlign: 'left',
+        color: 'rgba(246,244,239,0.55)',
+      }}>
+        {fmt(duration)}
+      </div>
+    </div>
+  );
+}
+
+function IconButton({ children, onClick, title }) {
+  const [hover, setHover] = React.useState(false);
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        width: 28, height: 28,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: hover ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 6,
+        color: '#f6f4ef',
+        cursor: 'pointer',
+        padding: 0,
+        transition: 'background 120ms',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+
+Object.assign(window, {
+  Easing, interpolate, animate, clamp,
+  TimelineContext, useTime, useTimeline,
+  Sprite, SpriteContext, useSprite,
+  TextSprite, ImageSprite, RectSprite,
+  Stage, PlaybackBar,
+});
+
+</script>
+<script type="text/babel">
+// Shared visual primitives for the InSAR intro scenes.
+// All components assume a 1920×1080 stage with the InSAR palette.
+
+const PALETTE = {
+  void:      '#05070d',
+  voidEdge:  '#0b0f1a',
+  ink:       '#e8eef7',
+  inkDim:    '#7a8597',
+  grid:      'rgba(120,180,255,0.10)',
+  gridStrong:'rgba(120,180,255,0.22)',
+  hot:       '#ff3b3b',
+  warm:      '#ffb454',
+  cool:      '#3aa6ff',
+  cold:      '#5dffd2',
+  signal:    '#9dff5d',
+  fringe1:   '#ff3366',
+  fringe2:   '#ffb800',
+  fringe3:   '#3affb8',
+  fringe4:   '#3aa6ff',
+  fringe5:   '#a060ff',
+};
+
+const MONO = 'JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace';
+const SANS = 'Inter, system-ui, sans-serif';
+
+// ── Starfield ────────────────────────────────────────────────────────────────
+// Static random stars — seeded so they don't reshuffle every render.
+const STAR_SEED = (() => {
+  // simple LCG for deterministic pseudo-random stars
+  let s = 1337;
+  const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+  const stars = [];
+  for (let i = 0; i < 220; i++) {
+    stars.push({
+      x: rnd() * 1920,
+      y: rnd() * 1080,
+      r: 0.4 + rnd() * 1.6,
+      o: 0.2 + rnd() * 0.8,
+      tw: rnd() * Math.PI * 2, // twinkle phase
+    });
+  }
+  return stars;
+})();
+
+function Starfield({ opacity = 1 }) {
+  const t = useTime();
+  return (
+    <svg
+      width="1920" height="1080"
+      style={{ position: 'absolute', inset: 0, opacity, pointerEvents: 'none' }}
+    >
+      {STAR_SEED.map((s, i) => {
+        const tw = 0.6 + 0.4 * Math.sin(t * 1.5 + s.tw);
+        return (
+          <circle
+            key={i}
+            cx={s.x} cy={s.y} r={s.r}
+            fill="#cfe1ff"
+            opacity={s.o * tw}
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
+// ── Coordinate grid (subtle) ─────────────────────────────────────────────────
+function CoordGrid({ opacity = 1, spacing = 80 }) {
+  const lines = [];
+  for (let x = 0; x <= 1920; x += spacing) lines.push(['v', x]);
+  for (let y = 0; y <= 1080; y += spacing) lines.push(['h', y]);
+  return (
+    <svg width="1920" height="1080" style={{ position: 'absolute', inset: 0, opacity, pointerEvents: 'none' }}>
+      {lines.map(([kind, p], i) => kind === 'v'
+        ? <line key={i} x1={p} y1={0} x2={p} y2={1080} stroke={PALETTE.grid} strokeWidth="1" />
+        : <line key={i} x1={0} y1={p} x2={1920} y2={p} stroke={PALETTE.grid} strokeWidth="1" />
+      )}
+    </svg>
+  );
+}
+
+// ── Corner brackets / HUD chrome ─────────────────────────────────────────────
+function HUDFrame({ opacity = 1, label = '' }) {
+  const stroke = PALETTE.gridStrong;
+  const arm = 60;
+  const inset = 40;
+  const Bracket = ({ x, y, dx, dy }) => (
+    <g stroke={stroke} strokeWidth="1.5" fill="none">
+      <line x1={x} y1={y} x2={x + dx * arm} y2={y} />
+      <line x1={x} y1={y} x2={x} y2={y + dy * arm} />
+    </g>
+  );
+  return (
+    <svg width="1920" height="1080" style={{ position: 'absolute', inset: 0, opacity, pointerEvents: 'none' }}>
+      <Bracket x={inset}        y={inset}        dx={1}  dy={1}  />
+      <Bracket x={1920 - inset} y={inset}        dx={-1} dy={1}  />
+      <Bracket x={inset}        y={1080 - inset} dx={1}  dy={-1} />
+      <Bracket x={1920 - inset} y={1080 - inset} dx={-1} dy={-1} />
+      {label && (
+        <text x={inset + 8} y={inset - 12} fill={PALETTE.inkDim} fontFamily={MONO} fontSize="13" letterSpacing="0.18em">
+          {label}
+        </text>
+      )}
+    </svg>
+  );
+}
+
+// ── Scanline / film grain overlay ────────────────────────────────────────────
+function Scanlines({ opacity = 0.06 }) {
+  return (
+    <div style={{
+      position: 'absolute', inset: 0,
+      backgroundImage: 'repeating-linear-gradient(0deg, rgba(255,255,255,0.06) 0 1px, transparent 1px 3px)',
+      mixBlendMode: 'overlay',
+      opacity,
+      pointerEvents: 'none',
+    }}/>
+  );
+}
+
+// ── Mono terminal-style readout line with typewriter reveal ──────────────────
+function ReadoutLine({ text, x, y, size = 16, color = PALETTE.signal, charDelay = 0.025, startDelay = 0, blinkAfter = true }) {
+  const { localTime } = useSprite();
+  const t = Math.max(0, localTime - startDelay);
+  const charsShown = Math.floor(t / charDelay);
+  const visible = text.slice(0, charsShown);
+  const showCursor = blinkAfter && Math.floor(t * 2) % 2 === 0;
+  return (
+    <div style={{
+      position: 'absolute', left: x, top: y,
+      fontFamily: MONO, fontSize: size, color,
+      letterSpacing: '0.04em', whiteSpace: 'pre',
+    }}>
+      {visible}
+      <span style={{ opacity: showCursor ? 1 : 0 }}>▌</span>
+    </div>
+  );
+}
+
+// ── Animated value counter (ticks toward target) ─────────────────────────────
+function CountUp({ from = 0, to = 100, start = 0, end = 1, decimals = 0, prefix = '', suffix = '', ease = Easing.easeOutCubic, style }) {
+  const t = useTime();
+  const fn = animate({ from, to, start, end, ease });
+  const v = fn(t);
+  return (
+    <span style={style}>
+      {prefix}{v.toFixed(decimals)}{suffix}
+    </span>
+  );
+}
+
+Object.assign(window, {
+  PALETTE, MONO, SANS,
+  Starfield, CoordGrid, HUDFrame, Scanlines,
+  ReadoutLine, CountUp,
+});
+
+</script>
+<script type="text/babel">
+// Scene 1: System boot — 0 to 4.5s
+// Stars fade in, terminal-style readout, INSAR GROUND DISPLACEMENT name reveal.
+
+function Scene1Boot() {
+  return (
+    <Sprite start={0} end={4.6}>
+      {({ localTime }) => {
+        // Fade-in for the whole scene
+        const fadeIn = 1;
+        // Hard cut-out just before scene 2 starts
+        const fadeOut = animate({ from: 1, to: 0.4, start: 4.0, end: 4.6 })(localTime);
+        const opacity = Math.min(fadeIn, fadeOut);
+
+        return (
+          <div style={{ position: 'absolute', inset: 0, background: PALETTE.void, opacity }}>
+            <Starfield opacity={1} />
+
+            {/* Subtle radial glow from horizon */}
+            <div style={{
+              position: 'absolute', left: 0, right: 0, bottom: -200, height: 600,
+              background: 'radial-gradient(ellipse at center, rgba(58,166,255,0.12), transparent 70%)',
+              pointerEvents: 'none',
+            }}/>
+
+            {/* Boot terminal — bottom-left */}
+            <div style={{ position: 'absolute', left: 120, bottom: 140, width: 920 }}>
+              <ReadoutLine text="$ anzura.init --module insar-ground-displacement" x={0} y={0}    size={18} color={PALETTE.signal} startDelay={0.15} blinkAfter={false}/>
+              <ReadoutLine text="› linking sar.constellation ............... OK" x={0} y={32}   size={18} color={PALETTE.inkDim} startDelay={0.7}  blinkAfter={false}/>
+              <ReadoutLine text="› binding orbit.ephemeris ................... OK" x={0} y={64}  size={18} color={PALETTE.inkDim} startDelay={1.15} blinkAfter={false}/>
+              <ReadoutLine text="› loading scene archive · 1 248 images ...... OK" x={0} y={96}  size={18} color={PALETTE.inkDim} startDelay={1.6}  blinkAfter={false}/>
+              <ReadoutLine text="› calibrating phase unwrap kernel ........... OK" x={0} y={128} size={18} color={PALETTE.inkDim} startDelay={2.05} blinkAfter={false}/>
+              <ReadoutLine text="› deformation engine ........................ ONLINE" x={0} y={160} size={18} color={PALETTE.cold} startDelay={2.5}  blinkAfter={true}/>
+            </div>
+
+            {/* Immediate first-frame lockup so the modal never opens as an empty black frame. */}
+            <div style={{
+              position: 'absolute', left: 120, top: 96,
+              fontFamily: SANS, color: PALETTE.ink,
+              opacity: animate({ from: 1, to: 0, start: 0.35, end: 1.2 })(localTime),
+              pointerEvents: 'none',
+            }}>
+              <div style={{ fontSize: 18, letterSpacing: '0.42em', color: PALETTE.cold, marginBottom: 18 }}>
+                ANZURA EARTH OBSERVATION
+              </div>
+              <div style={{ fontSize: 74, fontWeight: 300, letterSpacing: '-0.03em', lineHeight: 1 }}>
+                InSAR Ground Displacement
+              </div>
+            </div>
+
+            {/* Top-right system tag */}
+            <div style={{
+              position: 'absolute', right: 120, top: 80,
+              fontFamily: MONO, fontSize: 13, color: PALETTE.inkDim,
+              letterSpacing: '0.24em', textAlign: 'right', lineHeight: 1.6,
+              opacity: animate({ from: 0, to: 1, start: 0.3, end: 0.9 })(localTime),
+            }}>
+              <div>SYS-ID · ANZ-INSAR-04</div>
+              <div>UTC 02 MAY 2026 · 07:14:22Z</div>
+              <div style={{ color: PALETTE.signal }}>● LINK ESTABLISHED</div>
+            </div>
+
+            {/* Pre-title eyebrow */}
+            <div style={{
+              position: 'absolute', left: 120, top: 240,
+              fontFamily: SANS, fontSize: 22, fontWeight: 500,
+              color: PALETTE.inkDim, letterSpacing: '0.5em',
+              opacity: animate({ from: 0, to: 1, start: 0.4, end: 1.0 })(localTime),
+            }}>
+              ANZURA · EARTH OBSERVATION
+            </div>
+
+            <BigWordmark localTime={localTime} />
+
+            {/* Subtitle below wordmark */}
+            <div style={{
+              position: 'absolute', left: 120, top: 540,
+              fontFamily: MONO, fontSize: 24, color: PALETTE.cold,
+              letterSpacing: '0.32em',
+              opacity: animate({ from: 0, to: 1, start: 2.6, end: 3.4 })(localTime),
+            }}>
+              UYDU TABANLI YER DEĞİŞTİRME ANALİZİ · mm / yıl
+            </div>
+          </div>
+        );
+      }}
+    </Sprite>
+  );
+}
+
+// Wordmark with letter-by-letter rise.
+function BigWordmark({ localTime }) {
+  // Two-line title: "InSAR" then "GROUND DISPLACEMENT"
+  const line1 = 'InSAR'.split('');
+  const line2 = 'GROUND DISPLACEMENT'.split('');
+  return (
+    <>
+      {/* Line 1 — InSAR (huge, mixed weight) */}
+      <div style={{
+        position: 'absolute', left: 120, top: 290,
+        fontFamily: SANS, fontWeight: 200, fontSize: 200,
+        color: PALETTE.ink, letterSpacing: '-0.02em',
+        lineHeight: 1, display: 'flex',
+      }}>
+        {line1.map((ch, i) => {
+          const start = 0.7 + i * 0.06;
+          const t = animate({ from: 0, to: 1, start, end: start + 0.45, ease: Easing.easeOutCubic })(localTime);
+          return (
+            <span key={i} style={{
+              display: 'inline-block',
+              opacity: t,
+              transform: `translateY(${(1 - t) * 30}px)`,
+              fontWeight: ch === 'S' || ch === 'A' || ch === 'R' ? 600 : 200,
+              color: ch === 'S' || ch === 'A' || ch === 'R' ? PALETTE.cold : PALETTE.ink,
+            }}>{ch}</span>
+          );
+        })}
+      </div>
+      {/* Line 2 — GROUND DISPLACEMENT */}
+      <div style={{
+        position: 'absolute', left: 124, top: 460,
+        fontFamily: SANS, fontWeight: 300, fontSize: 76,
+        color: PALETTE.ink, letterSpacing: '0.06em',
+        lineHeight: 1, display: 'flex',
+      }}>
+        {line2.map((ch, i) => {
+          const start = 1.4 + i * 0.035;
+          const t = animate({ from: 0, to: 1, start, end: start + 0.4, ease: Easing.easeOutCubic })(localTime);
+          return (
+            <span key={i} style={{
+              display: 'inline-block',
+              opacity: t,
+              transform: `translateY(${(1 - t) * 18}px)`,
+              minWidth: ch === ' ' ? '0.4em' : 'auto',
+            }}>{ch === ' ' ? '\u00A0' : ch}</span>
+          );
+        })}
+      </div>
+      {/* Cyan accent line */}
+      <div style={{
+        position: 'absolute', left: 120, top: 270, height: 3,
+        width: animate({ from: 0, to: 1100, start: 1.8, end: 2.6, ease: Easing.easeInOutCubic })(localTime),
+        background: `linear-gradient(90deg, ${PALETTE.cold} 0%, transparent 100%)`,
+      }}/>
+    </>
+  );
+}
+
+Object.assign(window, { Scene1Boot });
+
+</script>
+<script type="text/babel">
+// Scene 2: Satellite acquisition — 4.4 to 10.0s
+// Earth limb at the bottom, Sentinel-1-style satellite traverses overhead,
+// radar beam sweeps the surface, ground swath highlights.
+
+function Scene2Satellite() {
+  return (
+    <Sprite start={4.4} end={10.0}>
+      {({ localTime }) => {
+        const fadeIn = animate({ from: 0, to: 1, start: 0, end: 0.6 })(localTime);
+        const fadeOut = animate({ from: 1, to: 0, start: 5.0, end: 5.6 })(localTime);
+        const opacity = Math.min(fadeIn, fadeOut);
+
+        // Satellite glides left-to-right across the upper portion
+        const satX = animate({ from: 200, to: 1620, start: 0.3, end: 4.8, ease: Easing.easeInOutCubic })(localTime);
+        const satY = 280;
+
+        // Radar beam intensity pulses
+        const beamOn = localTime > 1.0 && localTime < 4.7;
+        const beamPulse = 0.55 + 0.45 * Math.sin(localTime * 8);
+
+        return (
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: `radial-gradient(ellipse at 50% 120%, #0e1a30 0%, ${PALETTE.void} 65%)`,
+            opacity,
+          }}>
+            <Starfield opacity={0.85} />
+
+            {/* Earth limb — large arc at the bottom */}
+            <EarthLimb localTime={localTime} />
+
+            {/* HUD frame */}
+            <HUDFrame opacity={fadeIn} label="ACQUISITION · SAR C-BAND · 5.405 GHZ" />
+
+            {/* Satellite */}
+            <Satellite x={satX} y={satY} localTime={localTime} />
+
+            {/* Radar beam from sat to ground */}
+            {beamOn && <RadarBeam x={satX} y={satY} pulse={beamPulse} />}
+
+            {/* Telemetry block — bottom-left */}
+            <Telemetry localTime={localTime} satX={satX} />
+
+            {/* Acquisition label — top-right */}
+            <div style={{
+              position: 'absolute', right: 120, top: 120,
+              fontFamily: MONO, fontSize: 14, color: PALETTE.signal,
+              textAlign: 'right', letterSpacing: '0.2em', lineHeight: 1.7,
+              opacity: animate({ from: 0, to: 1, start: 0.3, end: 0.9 })(localTime),
+            }}>
+              <div style={{ color: PALETTE.inkDim }}>MISSION</div>
+              <div style={{ color: PALETTE.ink, fontSize: 22 }}>SAR-CONSTELLATION</div>
+              <div style={{ color: PALETTE.inkDim, marginTop: 12 }}>MODE</div>
+              <div style={{ color: PALETTE.ink, fontSize: 22 }}>INTERFEROMETRIC WIDE</div>
+              <div style={{ color: PALETTE.inkDim, marginTop: 12 }}>RESOLUTION</div>
+              <div style={{ color: PALETTE.ink, fontSize: 22 }}>5 m × 20 m</div>
+            </div>
+          </div>
+        );
+      }}
+    </Sprite>
+  );
+}
+
+// Earth limb — gentle arc with atmospheric glow
+function EarthLimb({ localTime }) {
+  const cx = 960, cy = 1900, r = 1400;
+  return (
+    <svg width="1920" height="1080" style={{ position: 'absolute', inset: 0 }}>
+      <defs>
+        <radialGradient id="earthGrad" cx="50%" cy="100%" r="50%">
+          <stop offset="0%"  stopColor="#1a3a6e"/>
+          <stop offset="60%" stopColor="#0a1a30"/>
+          <stop offset="100%" stopColor="#05070d"/>
+        </radialGradient>
+        <radialGradient id="atmoGrad" cx="50%" cy="100%" r="56%">
+          <stop offset="92%" stopColor="rgba(58,166,255,0)"/>
+          <stop offset="97%" stopColor="rgba(58,166,255,0.4)"/>
+          <stop offset="100%" stopColor="rgba(58,166,255,0)"/>
+        </radialGradient>
+      </defs>
+      {/* Atmosphere halo */}
+      <circle cx={cx} cy={cy} r={r + 30} fill="url(#atmoGrad)"/>
+      {/* Earth body */}
+      <circle cx={cx} cy={cy} r={r} fill="url(#earthGrad)"/>
+      {/* Lat/long graticule */}
+      <g stroke="rgba(120,180,255,0.18)" strokeWidth="1" fill="none">
+        {[0.85, 0.92, 0.99].map((rr, i) => (
+          <ellipse key={i} cx={cx} cy={cy} rx={r * rr} ry={r * rr * 0.9} />
+        ))}
+        {[-0.6, -0.3, 0, 0.3, 0.6].map((a, i) => {
+          const x1 = cx + r * Math.sin(a);
+          const y1 = cy - r * Math.cos(a);
+          return <line key={i} x1={cx} y1={cy} x2={x1} y2={y1} />;
+        })}
+      </g>
+    </svg>
+  );
+}
+
+// Satellite + solar panels (simplified Sentinel-1 silhouette)
+function Satellite({ x, y, localTime }) {
+  return (
+    <g style={{ transform: `translate(${x}px, ${y}px)`, position: 'absolute' }}>
+      <svg width="240" height="120" style={{ position: 'absolute', left: -120, top: -60, overflow: 'visible' }}>
+        {/* Solar panels */}
+        <rect x={-80} y={-12} width={70} height={24} fill="#0e1a30" stroke={PALETTE.cool} strokeWidth="1.2"/>
+        <rect x={130} y={-12} width={70} height={24} fill="#0e1a30" stroke={PALETTE.cool} strokeWidth="1.2"/>
+        {/* panel cells */}
+        {[0,1,2,3,4].map(i => (
+          <line key={`l${i}`} x1={-80 + i*14} y1={-12} x2={-80 + i*14} y2={12} stroke={PALETTE.cool} strokeOpacity="0.4"/>
+        ))}
+        {[0,1,2,3,4].map(i => (
+          <line key={`r${i}`} x1={130 + i*14} y1={-12} x2={130 + i*14} y2={12} stroke={PALETTE.cool} strokeOpacity="0.4"/>
+        ))}
+        {/* Body */}
+        <rect x={-12} y={-22} width={24} height={44} fill="#1a2540" stroke={PALETTE.ink} strokeWidth="1.5"/>
+        {/* SAR antenna */}
+        <rect x={50} y={-4} width={70} height={8} fill={PALETTE.cool} opacity="0.4" stroke={PALETTE.cool} strokeWidth="1"/>
+        <rect x={-120} y={-4} width={70} height={8} fill={PALETTE.cool} opacity="0.4" stroke={PALETTE.cool} strokeWidth="1"/>
+        {/* Status LED */}
+        <circle cx={0} cy={-26} r={3} fill={PALETTE.signal}>
+          <animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" repeatCount="indefinite"/>
+        </circle>
+        {/* Designator */}
+        <text x={20} y={-30} fill={PALETTE.inkDim} fontFamily={MONO} fontSize="11" letterSpacing="0.18em">SAR-1A</text>
+      </svg>
+      {/* Trail */}
+      <svg width="1920" height="80" style={{ position: 'absolute', left: -1900, top: -2, overflow: 'visible' }}>
+        <line x1={0} y1={2} x2={1900} y2={2} stroke={PALETTE.cool} strokeWidth="1" strokeDasharray="4 6" opacity="0.4"/>
+      </svg>
+    </g>
+  );
+}
+
+// Radar beam — dashed cone from sat to ground swath
+function RadarBeam({ x, y, pulse }) {
+  // Side-looking incidence ~33° to the right
+  const groundY = 760;
+  const offset = (groundY - y) * Math.tan((33 * Math.PI) / 180);
+  const swathHalf = 110;
+  const gx = x + offset;
+  return (
+    <svg width="1920" height="1080" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+      <defs>
+        <linearGradient id="beamGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgba(255,180,84,0.0)"/>
+          <stop offset="40%" stopColor={`rgba(255,180,84,${0.18 * pulse})`}/>
+          <stop offset="100%" stopColor={`rgba(255,59,59,${0.35 * pulse})`}/>
+        </linearGradient>
+      </defs>
+      <polygon
+        points={`${x},${y + 8} ${gx - swathHalf},${groundY} ${gx + swathHalf},${groundY}`}
+        fill="url(#beamGrad)"
+        stroke={PALETTE.warm}
+        strokeWidth="1"
+        opacity={pulse}
+      />
+      {/* beam edge dashes */}
+      <line x1={x} y1={y + 8} x2={gx - swathHalf} y2={groundY} stroke={PALETTE.warm} strokeWidth="1" strokeDasharray="2 6" opacity={0.6}/>
+      <line x1={x} y1={y + 8} x2={gx + swathHalf} y2={groundY} stroke={PALETTE.warm} strokeWidth="1" strokeDasharray="2 6" opacity={0.6}/>
+      {/* swath footprint */}
+      <ellipse cx={gx} cy={groundY} rx={swathHalf} ry={14} fill="none" stroke={PALETTE.hot} strokeWidth="1.5" opacity={pulse}/>
+      <ellipse cx={gx} cy={groundY} rx={swathHalf * 0.6} ry={9}  fill={PALETTE.hot} opacity={0.15 * pulse}/>
+      {/* footprint label */}
+      <text x={gx + swathHalf + 14} y={groundY + 5} fill={PALETTE.hot} fontFamily={MONO} fontSize="13" letterSpacing="0.16em">
+        FOOTPRINT · 250 km SWATH
+      </text>
+    </svg>
+  );
+}
+
+function Telemetry({ localTime, satX }) {
+  const opacity = animate({ from: 0, to: 1, start: 0.5, end: 1.1 })(localTime);
+  // Live pseudo-coords
+  const lat = 38.41 + Math.sin(localTime * 0.7) * 0.02;
+  const lon = 27.13 + (satX - 200) / 1420 * 0.4;
+  return (
+    <div style={{
+      position: 'absolute', left: 120, bottom: 120,
+      fontFamily: MONO, fontSize: 14, color: PALETTE.ink,
+      letterSpacing: '0.14em', lineHeight: 1.8,
+      opacity,
+    }}>
+      <div style={{ color: PALETTE.inkDim, fontSize: 12, marginBottom: 8 }}>TELEMETRY · NADIR TRACK</div>
+      <Row label="LAT" value={lat.toFixed(4) + '°N'} />
+      <Row label="LON" value={lon.toFixed(4) + '°E'} />
+      <Row label="ALT" value="693.0 km"/>
+      <Row label="V"   value="7.45 km/s"/>
+      <Row label="LOOK" value="33.1°"/>
+      <div style={{ marginTop: 14, color: PALETTE.signal, fontSize: 13 }}>
+        ► ACQUIRING SAR · {Math.floor(animate({from:0,to:847,start:0.8,end:2.8})(localTime))} MB
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, value }) {
+  return (
+    <div style={{ display: 'flex', gap: 18 }}>
+      <span style={{ color: PALETTE.inkDim, width: 60 }}>{label}</span>
+      <span style={{ color: PALETTE.ink, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+    </div>
+  );
+}
+
+Object.assign(window, { Scene2Satellite });
+
+</script>
+<script type="text/babel">
+// Scene 3: Interferometry — 9.8 to 15.6s
+// Two SAR amplitude images slide in (Master / Slave), merge into a wrapped-phase
+// interferogram with rainbow fringes that animate.
+
+function Scene3Interferogram() {
+  return (
+    <Sprite start={9.8} end={15.6}>
+      {({ localTime }) => {
+        const fadeIn = animate({ from: 0, to: 1, start: 0, end: 0.6 })(localTime);
+        const fadeOut = animate({ from: 1, to: 0, start: 5.0, end: 5.6 })(localTime);
+        const opacity = Math.min(fadeIn, fadeOut);
+
+        // Master tile: from off-screen-left to merge position
+        const masterX = animate({ from: -500, to: 500, start: 0.2, end: 1.4, ease: Easing.easeOutCubic })(localTime);
+        const slaveX  = animate({ from: 1920 + 100, to: 1020, start: 0.2, end: 1.4, ease: Easing.easeOutCubic })(localTime);
+
+        // Both tiles slide toward center & merge ~ at 2.2s
+        const mergeT = animate({ from: 0, to: 1, start: 2.0, end: 2.9, ease: Easing.easeInOutCubic })(localTime);
+        // After merge, only the interferogram remains (centered)
+
+        // Interferogram appears at mergeT > 0
+        const ifgScale = 1 + 0.04 * Math.sin(localTime * 2.2); // subtle breathing
+
+        // Sar tile dims as merge happens
+        const sarOpacity = 1 - mergeT;
+
+        return (
+          <div style={{ position: 'absolute', inset: 0, background: PALETTE.void, opacity }}>
+            <Starfield opacity={0.3} />
+            <CoordGrid opacity={0.5} spacing={120} />
+            <HUDFrame opacity={fadeIn} label="DIFFERENTIAL INTERFEROMETRY · D-InSAR" />
+
+            {/* Title */}
+            <div style={{
+              position: 'absolute', left: 120, top: 100,
+              fontFamily: MONO, fontSize: 14, color: PALETTE.inkDim,
+              letterSpacing: '0.24em',
+              opacity: fadeIn,
+            }}>
+              STEP 02 · PHASE INTERFEROMETRY
+            </div>
+            <div style={{
+              position: 'absolute', left: 120, top: 130,
+              fontFamily: SANS, fontSize: 56, fontWeight: 300, color: PALETTE.ink,
+              letterSpacing: '-0.01em',
+              opacity: fadeIn,
+            }}>
+              Δφ = φ<sub style={{ fontSize: 30 }}>master</sub> − φ<sub style={{ fontSize: 30 }}>slave</sub>
+            </div>
+
+            {/* Master SAR tile */}
+            <SARTile
+              x={masterX} y={400}
+              label="MASTER"
+              date="2025-04-12"
+              seed={11}
+              opacity={sarOpacity}
+            />
+            {/* Slave SAR tile */}
+            <SARTile
+              x={slaveX} y={400}
+              label="SLAVE"
+              date="2026-04-18"
+              seed={37}
+              opacity={sarOpacity}
+            />
+
+            {/* Minus sign between them */}
+            <div style={{
+              position: 'absolute', left: 940, top: 540,
+              fontFamily: SANS, fontSize: 80, color: PALETTE.cold,
+              fontWeight: 200,
+              opacity: sarOpacity,
+            }}>
+              −
+            </div>
+
+            {/* Interferogram appears as merge completes */}
+            <div style={{
+              position: 'absolute', left: 760, top: 400,
+              transform: `scale(${ifgScale * mergeT}) translateY(${(1 - mergeT) * 30}px)`,
+              transformOrigin: 'center',
+              opacity: mergeT,
+            }}>
+              <Interferogram time={localTime} />
+            </div>
+
+            {/* Equation result label */}
+            <div style={{
+              position: 'absolute', right: 120, top: 460,
+              fontFamily: MONO, fontSize: 14, color: PALETTE.inkDim,
+              letterSpacing: '0.18em', textAlign: 'right', lineHeight: 1.8,
+              opacity: animate({ from: 0, to: 1, start: 1.6, end: 2.2 })(localTime),
+            }}>
+              <div style={{ color: PALETTE.fringe3 }}>WRAPPED PHASE</div>
+              <div style={{ color: PALETTE.ink, fontSize: 32, fontFamily: SANS, fontWeight: 300 }}>
+                [−π, +π]
+              </div>
+              <div style={{ marginTop: 18, color: PALETTE.inkDim }}>EACH FRINGE =</div>
+              <div style={{ color: PALETTE.ink, fontSize: 22, fontFamily: SANS }}>
+                28 mm LOS
+              </div>
+              <div style={{ marginTop: 18, color: PALETTE.inkDim }}>COHERENCE</div>
+              <div style={{ color: PALETTE.signal, fontSize: 22, fontFamily: SANS, fontVariantNumeric: 'tabular-nums' }}>
+                <CountUp from={0.62} to={0.91} start={1.8} end={3.0} decimals={2} />
+              </div>
+            </div>
+
+            {/* Bottom strip — color legend */}
+            <ColorLegend localTime={localTime} />
+          </div>
+        );
+      }}
+    </Sprite>
+  );
+}
+
+// SAR amplitude tile — speckled grayscale with overlay text
+function SARTile({ x, y, label, date, seed, opacity }) {
+  const w = 360, h = 280;
+  return (
+    <div style={{
+      position: 'absolute', left: x, top: y,
+      width: w, height: h, opacity,
+      border: `1px solid ${PALETTE.gridStrong}`,
+      background: PALETTE.void,
+    }}>
+      <SARSpeckle width={w} height={h} seed={seed}/>
+      <div style={{
+        position: 'absolute', top: 8, left: 10,
+        fontFamily: MONO, fontSize: 12, color: PALETTE.cold,
+        letterSpacing: '0.2em',
+      }}>
+        {label}
+      </div>
+      <div style={{
+        position: 'absolute', top: 8, right: 10,
+        fontFamily: MONO, fontSize: 11, color: PALETTE.inkDim,
+        letterSpacing: '0.16em',
+      }}>
+        {date}
+      </div>
+      <div style={{
+        position: 'absolute', bottom: 8, left: 10,
+        fontFamily: MONO, fontSize: 10, color: PALETTE.inkDim,
+        letterSpacing: '0.18em',
+      }}>
+        SAR · VV · σ⁰
+      </div>
+      {/* Tile crosshair */}
+      <div style={{
+        position: 'absolute', left: w/2 - 10, top: h/2 - 1, width: 20, height: 2,
+        background: PALETTE.warm, opacity: 0.7,
+      }}/>
+      <div style={{
+        position: 'absolute', left: w/2 - 1, top: h/2 - 10, width: 2, height: 20,
+        background: PALETTE.warm, opacity: 0.7,
+      }}/>
+    </div>
+  );
+}
+
+// Speckled grayscale "SAR" pattern, drawn as SVG dots seeded for repeatability
+function SARSpeckle({ width, height, seed }) {
+  let s = seed;
+  const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+  const dots = [];
+  const count = 1800;
+  for (let i = 0; i < count; i++) {
+    dots.push({
+      x: rnd() * width,
+      y: rnd() * height,
+      r: 0.4 + rnd() * 1.2,
+      o: 0.15 + rnd() * 0.7,
+    });
+  }
+  // Add some bright "scatterers"
+  const bright = [];
+  for (let i = 0; i < 70; i++) {
+    bright.push({ x: rnd() * width, y: rnd() * height, r: 1 + rnd() * 2 });
+  }
+  return (
+    <svg width={width} height={height} style={{ position: 'absolute', inset: 0 }}>
+      <rect width={width} height={height} fill="#0a1020"/>
+      {dots.map((d, i) => (
+        <circle key={i} cx={d.x} cy={d.y} r={d.r} fill="#cfe1ff" opacity={d.o * 0.5}/>
+      ))}
+      {bright.map((d, i) => (
+        <circle key={`b${i}`} cx={d.x} cy={d.y} r={d.r} fill="#ffffff" opacity={0.85}/>
+      ))}
+    </svg>
+  );
+}
+
+// The interferogram: concentric warped fringes in rainbow palette
+function Interferogram({ time }) {
+  const w = 400, h = 280;
+  // Use SVG with a defs of conic-gradient-like pattern via repeating rings
+  // Centered "deformation bowl" — phase wraps every 2π
+  const cx = 220, cy = 140;
+  const ringCount = 7;
+  const rings = [];
+  // Rings warp slightly with time to suggest active phase
+  const breathe = Math.sin(time * 1.5) * 4;
+  for (let i = ringCount; i >= 1; i--) {
+    const radius = 30 + i * 22 + breathe;
+    rings.push({ r: radius, idx: i });
+  }
+  const fringeColors = [
+    PALETTE.fringe1, PALETTE.fringe2, PALETTE.fringe3,
+    PALETTE.fringe4, PALETTE.fringe5, PALETTE.fringe1, PALETTE.fringe2,
+  ];
+
+  return (
+    <div style={{
+      width: w, height: h,
+      border: `2px solid ${PALETTE.ink}`,
+      background: '#0a1020',
+      position: 'relative',
+      boxShadow: '0 0 80px rgba(58,166,255,0.2)',
+    }}>
+      <svg width={w} height={h} style={{ position: 'absolute', inset: 0 }}>
+        <defs>
+          <clipPath id="ifgClip">
+            <rect width={w} height={h}/>
+          </clipPath>
+        </defs>
+        <g clipPath="url(#ifgClip)">
+          {/* Background slight noise */}
+          <rect width={w} height={h} fill="#0a1020"/>
+          {/* Concentric fringes — drawn back-to-front */}
+          {rings.map((ring, i) => (
+            <ellipse
+              key={i}
+              cx={cx} cy={cy}
+              rx={ring.r * 1.2}
+              ry={ring.r * 0.85}
+              fill={fringeColors[ring.idx % fringeColors.length]}
+              opacity="0.85"
+              transform={`rotate(${-12 + Math.sin(time + i) * 2} ${cx} ${cy})`}
+            />
+          ))}
+          {/* Slight horizontal stripe modulation overlay */}
+          <rect width={w} height={h} fill="url(#stripe)" opacity="0.18"/>
+          {/* Outline of "active deformation zone" */}
+          <ellipse cx={cx} cy={cy} rx={50} ry={36} fill="none" stroke="#fff" strokeWidth="1.2" strokeDasharray="3 3" opacity="0.7"/>
+          {/* Crosshair */}
+          <line x1={cx-12} y1={cy} x2={cx+12} y2={cy} stroke="#fff" strokeWidth="1"/>
+          <line x1={cx} y1={cy-12} x2={cx} y2={cy+12} stroke="#fff" strokeWidth="1"/>
+        </g>
+      </svg>
+      {/* Label */}
+      <div style={{
+        position: 'absolute', top: 10, left: 12,
+        fontFamily: MONO, fontSize: 12, color: '#fff',
+        letterSpacing: '0.2em',
+        background: 'rgba(0,0,0,0.55)', padding: '3px 8px',
+      }}>
+        INTERFEROGRAM · WRAPPED Δφ
+      </div>
+      <div style={{
+        position: 'absolute', bottom: 10, right: 12,
+        fontFamily: MONO, fontSize: 11, color: PALETTE.cold,
+        letterSpacing: '0.18em',
+        background: 'rgba(0,0,0,0.55)', padding: '3px 8px',
+      }}>
+        BPERP 24 m · ΔT 372 d
+      </div>
+    </div>
+  );
+}
+
+// Bottom color legend strip
+function ColorLegend({ localTime }) {
+  const opacity = animate({ from: 0, to: 1, start: 1.8, end: 2.4 })(localTime);
+  const colors = [PALETTE.fringe1, PALETTE.fringe2, PALETTE.fringe3, PALETTE.fringe4, PALETTE.fringe5];
+  return (
+    <div style={{
+      position: 'absolute', left: 760, top: 720, width: 400,
+      opacity,
+    }}>
+      <div style={{
+        display: 'flex', height: 16,
+        border: `1px solid ${PALETTE.gridStrong}`,
+      }}>
+        {colors.map((c, i) => (
+          <div key={i} style={{ flex: 1, background: c }}/>
+        ))}
+      </div>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between',
+        fontFamily: MONO, fontSize: 11, color: PALETTE.inkDim,
+        letterSpacing: '0.16em', marginTop: 6,
+      }}>
+        <span>−π</span>
+        <span>0</span>
+        <span>+π</span>
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { Scene3Interferogram });
+
+</script>
+<script type="text/babel">
+// Scene 4.5: Phase Unwrapping → 3D displacement vectors — 15.4 to 21.6s
+// The wrapped interferogram unwraps; an isometric 3D surface emerges with
+// displacement arrows; LOS decomposition into vertical/horizontal components.
+
+function ScenePhaseUnwrap() {
+  return (
+    <Sprite start={15.4} end={21.6}>
+      {({ localTime }) => {
+        const fadeIn  = animate({ from: 0, to: 1, start: 0,   end: 0.6 })(localTime);
+        const fadeOut = animate({ from: 1, to: 0, start: 5.6, end: 6.2 })(localTime);
+        const opacity = Math.min(fadeIn, fadeOut);
+
+        // Wrapped → unwrapped morph at 0.5–1.6s
+        const unwrapT = animate({ from: 0, to: 1, start: 0.4, end: 1.6, ease: Easing.easeInOutCubic })(localTime);
+
+        // Surface tilts into 3D after unwrap
+        const tiltT   = animate({ from: 0, to: 1, start: 1.6, end: 2.6, ease: Easing.easeInOutCubic })(localTime);
+
+        // Vector arrows fly in
+        const vecT    = animate({ from: 0, to: 1, start: 2.7, end: 3.6, ease: Easing.easeOutCubic })(localTime);
+
+        // Decomposition labels
+        const decompT = animate({ from: 0, to: 1, start: 3.8, end: 4.6 })(localTime);
+
+        return (
+          <div style={{ position: 'absolute', inset: 0, background: PALETTE.void, opacity }}>
+            <CoordGrid opacity={0.35} spacing={120} />
+            <HUDFrame opacity={fadeIn} label="STEP 03 · PHASE UNWRAPPING · 3-D RECONSTRUCTION" />
+
+            {/* Title */}
+            <div style={{
+              position: 'absolute', left: 120, top: 100,
+              fontFamily: MONO, fontSize: 14, color: PALETTE.inkDim,
+              letterSpacing: '0.24em', opacity: fadeIn,
+            }}>
+              STEP 03 · UNWRAP & RECONSTRUCT
+            </div>
+            <div style={{
+              position: 'absolute', left: 120, top: 130,
+              fontFamily: SANS, fontSize: 56, fontWeight: 300, color: PALETTE.ink,
+              letterSpacing: '-0.01em', opacity: fadeIn,
+            }}>
+              Sarmal{'\u0131'} faz{' '}
+              <span style={{ color: PALETTE.warm }}>→</span>{' '}
+              ger{'\u00e7'}ek yer de{'\u011f'}i{'\u015f'}tirme
+            </div>
+
+            {/* Center stage: 3D-ish surface */}
+            <div style={{
+              position: 'absolute', left: 540, top: 260, width: 840, height: 600,
+            }}>
+              <DisplacementSurface unwrapT={unwrapT} tiltT={tiltT} vecT={vecT} time={localTime}/>
+            </div>
+
+            {/* Left side: equation + before/after thumbs */}
+            <div style={{
+              position: 'absolute', left: 120, top: 290, width: 380,
+              opacity: fadeIn,
+            }}>
+              <div style={{ fontFamily: MONO, fontSize: 12, color: PALETTE.inkDim, letterSpacing: '0.22em' }}>
+                LOS DISPLACEMENT
+              </div>
+              <div style={{
+                fontFamily: SANS, fontSize: 40, fontWeight: 300, color: PALETTE.ink,
+                marginTop: 10, lineHeight: 1.3, letterSpacing: '-0.01em',
+              }}>
+                d<sub style={{ fontSize: 22 }}>LOS</sub> = (λ / 4π) · Δφ<sub style={{ fontSize: 22 }}>unw</sub>
+              </div>
+              <div style={{
+                fontFamily: MONO, fontSize: 13, color: PALETTE.inkDim,
+                marginTop: 16, letterSpacing: '0.16em', lineHeight: 1.7,
+              }}>
+                λ = 5.547 cm  ·  C-band<br/>
+                1 fringe ≈ 28 mm<br/>
+                σ ≈ 1.2 mm  ·  long-stack PSI
+              </div>
+
+              {/* Mini wrapped vs unwrapped strips */}
+              <div style={{ marginTop: 26, display: 'flex', gap: 14 }}>
+                <MiniStrip label="WRAPPED"   wrapped time={localTime}/>
+                <MiniStrip label="UNWRAPPED" wrapped={false} unwrapT={unwrapT} time={localTime}/>
+              </div>
+            </div>
+
+            {/* Right side: vector decomposition (V / E-W / N-S) */}
+            <div style={{
+              position: 'absolute', right: 90, top: 280, width: 400,
+              opacity: decompT,
+              fontFamily: MONO, color: PALETTE.ink,
+            }}>
+              <div style={{ fontSize: 12, color: PALETTE.inkDim, letterSpacing: '0.22em' }}>
+                VEKTÖR AYRIŞTIRMA
+              </div>
+              <DecompBar label="VERTICAL"   value={-24.6} max={40} color={PALETTE.hot}    delay={3.9} localTime={localTime}/>
+              <DecompBar label="EAST-WEST"  value={+8.2}  max={40} color={PALETTE.cool}   delay={4.05} localTime={localTime}/>
+              <DecompBar label="NORTH-SOUTH" value={-3.1} max={40} color={PALETTE.fringe2} delay={4.2} localTime={localTime}/>
+
+              <div style={{ marginTop: 32, fontSize: 13, color: PALETTE.inkDim, letterSpacing: '0.16em', lineHeight: 1.7 }}>
+                ► ASCENDING + DESCENDING<br/>
+                ► 3-COMPONENT INVERSION<br/>
+                ► <span style={{ color: PALETTE.signal }}>SUB-CM ACCURACY</span>
+              </div>
+            </div>
+          </div>
+        );
+      }}
+    </Sprite>
+  );
+}
+
+// 3D-ish displacement surface — orthographic skewed grid with vertical bumps
+function DisplacementSurface({ unwrapT, tiltT, vecT, time }) {
+  const W = 840, H = 600;
+  // Grid resolution
+  const cols = 24, rows = 18;
+
+  // Tilt parameters
+  const skewX = 0.55 * tiltT;       // horizontal compression as we tilt
+  const skewY = 0.35 * tiltT;       // vertical squish
+  const offsetY = 60 * tiltT;
+  const liftAmp = 90 * tiltT;        // amount of vertical lift in displacement bumps
+
+  // Center of "deformation bowl"
+  const cx = cols * 0.42;
+  const cy = rows * 0.55;
+
+  // Compute height field (negative for subsidence well, positive for uplift bump)
+  const heightAt = (gx, gy) => {
+    const dx1 = gx - cx, dy1 = gy - cy;
+    const r1 = Math.sqrt(dx1*dx1 + dy1*dy1);
+    const subsidence = -Math.exp(-r1 * r1 / 20) * 1.0; // big well
+    const upliftCx = cols * 0.78, upliftCy = rows * 0.35;
+    const dx2 = gx - upliftCx, dy2 = gy - upliftCy;
+    const r2 = Math.sqrt(dx2*dx2 + dy2*dy2);
+    const uplift = Math.exp(-r2 * r2 / 12) * 0.55;
+    return subsidence + uplift;
+  };
+
+  // Project a grid point (gx, gy) to screen
+  const project = (gx, gy) => {
+    // Base 2D position
+    const baseX = (gx / (cols - 1)) * W;
+    const baseY = (gy / (rows - 1)) * H * 0.85;
+    // Tilt: as tiltT grows, push perspective. Y compresses, X shears.
+    const h = heightAt(gx, gy) * liftAmp;
+    const x = baseX + (baseY * skewX * 0.0);
+    const y = baseY * (1 - skewY * 0.5) + offsetY - h;
+    return { x, y, h: heightAt(gx, gy) };
+  };
+
+  // Color from height — warm for subsidence (down), cool for uplift
+  const colorFromH = (h) => {
+    // h roughly -1 .. +0.55
+    const t = (h + 1) / 1.55; // 0..1
+    // mix red(hot) → yellow → green → cyan → blue
+    if (t < 0.25)    return PALETTE.hot;
+    if (t < 0.5)     return PALETTE.warm;
+    if (t < 0.7)     return PALETTE.fringe3;
+    if (t < 0.85)    return PALETTE.cool;
+    return PALETTE.cold;
+  };
+
+  // Build polygon faces
+  const faces = [];
+  for (let j = 0; j < rows - 1; j++) {
+    for (let i = 0; i < cols - 1; i++) {
+      const p00 = project(i,     j);
+      const p10 = project(i + 1, j);
+      const p11 = project(i + 1, j + 1);
+      const p01 = project(i,     j + 1);
+      const hAvg = (p00.h + p10.h + p11.h + p01.h) / 4;
+      faces.push({
+        d: `M${p00.x},${p00.y} L${p10.x},${p10.y} L${p11.x},${p11.y} L${p01.x},${p01.y} Z`,
+        fill: colorFromH(hAvg),
+        opacity: 0.55 + 0.35 * unwrapT,
+        stroke: 'rgba(255,255,255,0.06)',
+      });
+    }
+  }
+
+  // Displacement arrows at peaks of the bowl
+  const arrowPts = [
+    { gx: cx,            gy: cy,            mag: -38, color: PALETTE.hot,  label: '-38 mm' },
+    { gx: cols * 0.78,   gy: rows * 0.35,   mag: +12, color: PALETTE.cool, label: '+12 mm' },
+    { gx: cols * 0.20,   gy: rows * 0.20,   mag: -8,  color: PALETTE.warm, label: '-8 mm'  },
+    { gx: cols * 0.55,   gy: rows * 0.85,   mag: +4,  color: PALETTE.cold, label: '+4 mm'  },
+  ];
+
+  return (
+    <svg width={W} height={H} style={{ overflow: 'visible' }}>
+      {/* Frame */}
+      <rect x="0" y="0" width={W} height={H} fill="none" stroke={PALETTE.gridStrong} strokeWidth="1"/>
+
+      {/* Pre-tilt: wrapped fringe pattern morphs to surface */}
+      {tiltT < 0.4 && (
+        <g opacity={1 - tiltT * 2.5}>
+          {[...Array(7)].map((_, i) => {
+            const r = 50 + i * 50;
+            const colors = [PALETTE.fringe1, PALETTE.fringe2, PALETTE.fringe3, PALETTE.fringe4, PALETTE.fringe5, PALETTE.fringe1, PALETTE.fringe2];
+            return (
+              <ellipse key={i}
+                cx={W * 0.42} cy={H * 0.5}
+                rx={r * 1.6} ry={r}
+                fill="none"
+                stroke={colors[i % colors.length]}
+                strokeWidth="14"
+                opacity={0.7}
+              />
+            );
+          })}
+        </g>
+      )}
+
+      {/* Surface faces */}
+      <g opacity={tiltT}>
+        {faces.map((f, i) => (
+          <path key={i} d={f.d} fill={f.fill} fillOpacity={f.opacity} stroke={f.stroke} strokeWidth="0.5"/>
+        ))}
+      </g>
+
+      {/* Wireframe contour lines on top */}
+      <g opacity={tiltT * 0.7} stroke="rgba(255,255,255,0.25)" strokeWidth="0.8" fill="none">
+        {[...Array(rows)].map((_, j) => {
+          const pts = [...Array(cols)].map((_, i) => project(i, j));
+          const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+          return <path key={`r${j}`} d={d}/>;
+        })}
+      </g>
+
+      {/* Displacement arrows */}
+      {vecT > 0 && arrowPts.map((a, i) => {
+        const p = project(a.gx, a.gy);
+        const len = Math.abs(a.mag) * 2.5 * vecT;
+        const dir = a.mag < 0 ? 1 : -1; // negative (subsidence) points down
+        const x2 = p.x;
+        const y2 = p.y + dir * len;
+        return (
+          <g key={i}>
+            <line x1={p.x} y1={p.y} x2={x2} y2={y2}
+              stroke={a.color} strokeWidth="3" strokeLinecap="round"
+              markerEnd={`url(#arrow-${i})`}
+            />
+            <defs>
+              <marker id={`arrow-${i}`} viewBox="0 0 10 10" refX="6" refY="5"
+                markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill={a.color}/>
+              </marker>
+            </defs>
+            <circle cx={p.x} cy={p.y} r="5" fill={a.color}/>
+            {vecT > 0.5 && (
+              <text x={x2 + 8} y={y2 + 5}
+                fill={a.color} fontFamily={MONO} fontSize="14"
+                fontWeight="600" letterSpacing="0.12em">
+                {a.label}
+              </text>
+            )}
+          </g>
+        );
+      })}
+
+      {/* Compass */}
+      <g transform={`translate(${W - 80}, ${H - 60})`} opacity={tiltT}>
+        <circle cx="0" cy="0" r="26" fill="rgba(0,0,0,0.4)" stroke={PALETTE.inkDim} strokeWidth="1"/>
+        <text x="0" y="-30" fill={PALETTE.ink} fontFamily={MONO} fontSize="12" textAnchor="middle">N</text>
+        <line x1="0" y1="-20" x2="0" y2="20" stroke={PALETTE.ink} strokeWidth="1"/>
+        <line x1="-20" y1="0" x2="20" y2="0" stroke={PALETTE.inkDim} strokeWidth="1"/>
+        <polygon points="0,-22 -4,-12 4,-12" fill={PALETTE.cool}/>
+      </g>
+    </svg>
+  );
+}
+
+function MiniStrip({ label, wrapped, unwrapT = 0, time = 0 }) {
+  const colors = [PALETTE.fringe1, PALETTE.fringe2, PALETTE.fringe3, PALETTE.fringe4, PALETTE.fringe5];
+  return (
+    <div style={{ width: 170 }}>
+      <div style={{
+        fontFamily: MONO, fontSize: 11, color: PALETTE.inkDim,
+        letterSpacing: '0.2em', marginBottom: 6,
+      }}>{label}</div>
+      <div style={{
+        height: 90,
+        border: `1px solid ${PALETTE.gridStrong}`,
+        background: '#0a1020',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {wrapped ? (
+          // Wrapped: rainbow concentric ellipses
+          <svg width="100%" height="100%" viewBox="0 0 170 90" preserveAspectRatio="none">
+            {[...Array(6)].map((_, i) => (
+              <ellipse key={i} cx="80" cy="45" rx={12 + i * 14} ry={8 + i * 9}
+                fill="none" stroke={colors[i % colors.length]} strokeWidth="6" opacity="0.85"/>
+            ))}
+          </svg>
+        ) : (
+          // Unwrapped: smooth gradient bowl
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: `radial-gradient(ellipse at 47% 50%, ${PALETTE.hot} 0%, ${PALETTE.warm} 30%, ${PALETTE.fringe3} 60%, ${PALETTE.cool} 100%)`,
+            opacity: 0.6 + 0.4 * unwrapT,
+          }}/>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DecompBar({ label, value, max, color, delay, localTime }) {
+  const sign = value >= 0 ? '+' : '−';
+  const abs = Math.abs(value);
+  const t = animate({ from: 0, to: 1, start: delay, end: delay + 0.6, ease: Easing.easeOutCubic })(localTime);
+  const pct = (abs / max) * t;
+  return (
+    <div style={{ marginTop: 22 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <span style={{ fontSize: 12, color: PALETTE.inkDim, letterSpacing: '0.18em' }}>{label}</span>
+        <span style={{ fontSize: 22, color, fontVariantNumeric: 'tabular-nums', fontFamily: MONO }}>
+          {sign}<CountUp from={0} to={abs} start={15.4 + delay} end={15.4 + delay + 0.7} decimals={1}/> mm/yr
+        </span>
+      </div>
+      <div style={{ marginTop: 8, height: 4, background: 'rgba(255,255,255,0.08)', position: 'relative' }}>
+        <div style={{
+          position: 'absolute', left: value < 0 ? 'auto' : '50%', right: value < 0 ? '50%' : 'auto',
+          top: 0, bottom: 0,
+          width: `${pct * 50}%`,
+          background: color,
+        }}/>
+        <div style={{ position: 'absolute', left: '50%', top: -3, bottom: -3, width: 1, background: PALETTE.inkDim }}/>
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { ScenePhaseUnwrap });
+
+</script>
+<script type="text/babel">
+// Scene 4: Measurement / Displacement map — 21.4 to 27.6s
+// A map view with deformation hot spots, animated pins counting up to mm/yr values.
+
+function Scene4Measurement() {
+  return (
+    <Sprite start={21.4} end={27.6}>
+      {({ localTime }) => {
+        const fadeIn = animate({ from: 0, to: 1, start: 0, end: 0.6 })(localTime);
+        const fadeOut = animate({ from: 1, to: 0, start: 5.4, end: 6.0 })(localTime);
+        const opacity = Math.min(fadeIn, fadeOut);
+
+        return (
+          <div style={{ position: 'absolute', inset: 0, background: PALETTE.void, opacity }}>
+            <CoordGrid opacity={0.35} spacing={60} />
+            <HUDFrame opacity={fadeIn} label="STEP 03 · LINE-OF-SIGHT DISPLACEMENT" />
+
+            {/* Title */}
+            <div style={{
+              position: 'absolute', left: 120, top: 100,
+              fontFamily: MONO, fontSize: 14, color: PALETTE.inkDim,
+              letterSpacing: '0.24em', opacity: fadeIn,
+            }}>
+              STEP 03 · MEASUREMENT
+            </div>
+            <div style={{
+              position: 'absolute', left: 120, top: 130,
+              fontFamily: SANS, fontSize: 56, fontWeight: 300, color: PALETTE.ink,
+              letterSpacing: '-0.01em', opacity: fadeIn,
+            }}>
+              LOS displacement · <span style={{ color: PALETTE.warm }}>mm / yıl</span>
+            </div>
+
+            {/* Map area */}
+            <DeformationMap localTime={localTime} />
+
+            {/* Side panel — readouts */}
+            <SidePanel localTime={localTime} />
+          </div>
+        );
+      }}
+    </Sprite>
+  );
+}
+
+function DeformationMap({ localTime }) {
+  // Map frame on the left
+  const fx = 120, fy = 240, fw = 1100, fh = 720;
+
+  // Hot spots — each (x,y) in map coords + a target value in mm/yr
+  const spots = [
+    { x: 280, y: 220, value: -38.4, color: PALETTE.hot,    label: 'A-01', delay: 1.0 },
+    { x: 540, y: 380, value: +12.7, color: PALETTE.cool,   label: 'A-02', delay: 1.3 },
+    { x: 760, y: 200, value: -21.1, color: PALETTE.warm,   label: 'A-03', delay: 1.6 },
+    { x: 880, y: 540, value:  -6.3, color: PALETTE.fringe2,label: 'A-04', delay: 1.9 },
+    { x: 380, y: 580, value: +3.2,  color: PALETTE.cold,   label: 'A-05', delay: 2.2 },
+  ];
+
+  return (
+    <div style={{
+      position: 'absolute', left: fx, top: fy, width: fw, height: fh,
+      border: `1px solid ${PALETTE.gridStrong}`,
+      background: 'linear-gradient(135deg, #0a1428 0%, #050912 100%)',
+      overflow: 'hidden',
+    }}>
+      {/* Map underlay — pseudo-terrain via SVG */}
+      <MapUnderlay width={fw} height={fh} />
+
+      {/* Heatmap blobs over the spots */}
+      <svg width={fw} height={fh} style={{ position: 'absolute', inset: 0 }}>
+        <defs>
+          {spots.map((s, i) => (
+            <radialGradient key={i} id={`heat${i}`} cx="50%" cy="50%" r="50%">
+              <stop offset="0%"  stopColor={s.color} stopOpacity="0.55"/>
+              <stop offset="60%" stopColor={s.color} stopOpacity="0.18"/>
+              <stop offset="100%" stopColor={s.color} stopOpacity="0"/>
+            </radialGradient>
+          ))}
+        </defs>
+        {spots.map((s, i) => {
+          const t = animate({ from: 0, to: 1, start: s.delay, end: s.delay + 0.5, ease: Easing.easeOutCubic })(localTime);
+          return (
+            <ellipse
+              key={i}
+              cx={s.x} cy={s.y}
+              rx={140 * t} ry={100 * t}
+              fill={`url(#heat${i})`}
+            />
+          );
+        })}
+      </svg>
+
+      {/* Pins with count-up labels */}
+      {spots.map((s, i) => {
+        const t = animate({ from: 0, to: 1, start: s.delay + 0.15, end: s.delay + 0.6, ease: Easing.easeOutBack })(localTime);
+        return (
+          <div key={i} style={{
+            position: 'absolute', left: s.x, top: s.y,
+            transform: `translate(-50%, -50%) scale(${t})`,
+            opacity: t,
+          }}>
+            <Pin color={s.color} value={s.value} label={s.label} startTime={s.delay + 0.4} localTime={localTime}/>
+          </div>
+        );
+      })}
+
+      {/* Map label corners */}
+      <div style={{ position: 'absolute', top: 12, left: 14, fontFamily: MONO, fontSize: 11, color: PALETTE.inkDim, letterSpacing: '0.18em' }}>
+        AOI · 38.40°N 27.13°E · 12 × 8 km
+      </div>
+      <div style={{ position: 'absolute', top: 12, right: 14, fontFamily: MONO, fontSize: 11, color: PALETTE.signal, letterSpacing: '0.18em' }}>
+        ● TIME-SERIES 2025-04 → 2026-04
+      </div>
+      <div style={{ position: 'absolute', bottom: 12, left: 14, fontFamily: MONO, fontSize: 11, color: PALETTE.inkDim, letterSpacing: '0.18em' }}>
+        N PIXELS · 1 240 800 · UNW · MASKED
+      </div>
+      {/* Scale bar */}
+      <div style={{ position: 'absolute', bottom: 12, right: 14, fontFamily: MONO, fontSize: 11, color: PALETTE.inkDim, letterSpacing: '0.18em', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 80, height: 4, background: PALETTE.ink }}/>
+        <span>2 km</span>
+      </div>
+    </div>
+  );
+}
+
+// SVG terrain-ish underlay: contour lines + a few "buildings"
+function MapUnderlay({ width, height }) {
+  // Procedurally seeded contour lines
+  let s = 91;
+  const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+  const contours = [];
+  for (let i = 0; i < 8; i++) {
+    const cy = 80 + i * 90;
+    const path = [];
+    for (let x = 0; x <= width; x += 30) {
+      const y = cy + Math.sin(x * 0.011 + i) * 22 + Math.sin(x * 0.04 + i * 2) * 8;
+      path.push(`${x === 0 ? 'M' : 'L'}${x},${y}`);
+    }
+    contours.push(path.join(' '));
+  }
+  // Faux infrastructure rectangles
+  const blocks = [];
+  for (let i = 0; i < 36; i++) {
+    blocks.push({ x: rnd() * width, y: rnd() * height, w: 8 + rnd() * 24, h: 8 + rnd() * 18 });
+  }
+  return (
+    <svg width={width} height={height} style={{ position: 'absolute', inset: 0 }}>
+      {/* Contours */}
+      {contours.map((d, i) => (
+        <path key={i} d={d} fill="none" stroke="rgba(120,180,255,0.18)" strokeWidth="1"/>
+      ))}
+      {/* Blocks */}
+      {blocks.map((b, i) => (
+        <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.10)" strokeWidth="0.5"/>
+      ))}
+      {/* River-like polyline */}
+      <path
+        d={`M 0,${height*0.6} Q ${width*0.25},${height*0.55} ${width*0.5},${height*0.7} T ${width},${height*0.6}`}
+        fill="none" stroke="rgba(58,166,255,0.35)" strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+function Pin({ color, value, label, startTime, localTime }) {
+  const sign = value >= 0 ? '+' : '−';
+  const abs = Math.abs(value);
+  return (
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10 }}>
+      {/* dot + ring */}
+      <div style={{ position: 'relative', width: 18, height: 18 }}>
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: color, borderRadius: '50%',
+          boxShadow: `0 0 18px ${color}`,
+        }}/>
+        <div style={{
+          position: 'absolute', inset: -8,
+          border: `1px solid ${color}`, borderRadius: '50%', opacity: 0.55,
+        }}/>
+      </div>
+      {/* readout */}
+      <div style={{
+        background: 'rgba(5,7,13,0.85)',
+        border: `1px solid ${color}`,
+        padding: '6px 10px',
+        fontFamily: MONO, color: PALETTE.ink,
+        whiteSpace: 'nowrap',
+      }}>
+        <div style={{ fontSize: 10, color: PALETTE.inkDim, letterSpacing: '0.2em' }}>{label}</div>
+        <div style={{ fontSize: 18, fontVariantNumeric: 'tabular-nums', color }}>
+          {sign}<CountUp from={0} to={abs} start={startTime} end={startTime + 0.9} decimals={1}/> mm/yr
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SidePanel({ localTime }) {
+  const opacity = animate({ from: 0, to: 1, start: 1.6, end: 2.4 })(localTime);
+  return (
+    <div style={{
+      position: 'absolute', right: 120, top: 240, width: 460,
+      opacity,
+      fontFamily: MONO, color: PALETTE.ink,
+    }}>
+      <div style={{ fontSize: 12, color: PALETTE.inkDim, letterSpacing: '0.22em' }}>
+        ANALYSIS · STACK 64 IFG
+      </div>
+
+      <div style={{ marginTop: 24, padding: '20px 22px', border: `1px solid ${PALETTE.gridStrong}`, background: 'rgba(120,180,255,0.04)' }}>
+        <Stat label="MAX SUBSIDENCE"  value={<><CountUp from={0} to={38.4} start={23.0} end={24.4} decimals={1}/> mm/yr</>} color={PALETTE.hot}/>
+        <Stat label="MAX UPLIFT"      value={<><CountUp from={0} to={12.7} start={23.2} end={24.6} decimals={1}/> mm/yr</>} color={PALETTE.cool}/>
+        <Stat label="POINT TARGETS"   value={<><CountUp from={0} to={48214} start={23.4} end={24.6} decimals={0}/></>} color={PALETTE.ink}/>
+        <Stat label="STACK COHERENCE" value={<><CountUp from={0.62} to={0.91} start={23.6} end={24.8} decimals={2}/></>} color={PALETTE.signal}/>
+        <Stat label="UNCERTAINTY"     value={<>± <CountUp from={0} to={1.2} start={23.8} end={25.0} decimals={1}/> mm</>} color={PALETTE.inkDim} last/>
+      </div>
+
+      <div style={{ marginTop: 22, fontSize: 13, color: PALETTE.inkDim, letterSpacing: '0.16em', lineHeight: 1.7 }}>
+        ► PSI · SBAS HYBRID PIPELINE<br/>
+        ► ATMOSPHERIC PHASE FILTERED<br/>
+        ► REFERENCED TO STABLE BEDROCK
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, color, last }) {
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+      padding: '12px 0',
+      borderBottom: last ? 'none' : `1px solid ${PALETTE.gridStrong}`,
+    }}>
+      <span style={{ fontSize: 11, color: PALETTE.inkDim, letterSpacing: '0.18em' }}>{label}</span>
+      <span style={{ fontSize: 22, color, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+    </div>
+  );
+}
+
+Object.assign(window, { Scene4Measurement });
+
+</script>
+<script type="text/babel">
+// Scene 5: Final logo lockup — 27.4 to 32.0s
+// Everything settles into a centered, confident logo with tagline.
+
+function Scene5Logo() {
+  return (
+    <Sprite start={27.4} end={32.0}>
+      {({ localTime }) => {
+        const fadeIn = animate({ from: 0, to: 1, start: 0, end: 0.6 })(localTime);
+        const opacity = fadeIn;
+
+        // Mark scale-up
+        const markScale = animate({ from: 0.6, to: 1, start: 0.1, end: 0.9, ease: Easing.easeOutBack })(localTime);
+        const markOp    = animate({ from: 0, to: 1, start: 0.1, end: 0.7 })(localTime);
+
+        // Wordmark letter reveal
+        const letters = 'ANZURA'.split('');
+
+        // Tagline reveal
+        const taglineOp = animate({ from: 0, to: 1, start: 1.3, end: 1.9 })(localTime);
+        const lineWidth = animate({ from: 0, to: 800, start: 1.0, end: 1.7, ease: Easing.easeInOutCubic })(localTime);
+
+        // Bottom strip reveal
+        const stripOp = animate({ from: 0, to: 1, start: 1.7, end: 2.2 })(localTime);
+
+        return (
+          <div style={{ position: 'absolute', inset: 0, background: PALETTE.void, opacity }}>
+            <Starfield opacity={0.4} />
+
+            {/* Faint orbital ring backdrop */}
+            <svg width="1920" height="1080" style={{ position: 'absolute', inset: 0 }}>
+              <ellipse cx="960" cy="540" rx="700" ry="200" fill="none" stroke={PALETTE.gridStrong} strokeWidth="1" strokeDasharray="2 6"
+                transform="rotate(-12 960 540)"/>
+              <ellipse cx="960" cy="540" rx="500" ry="140" fill="none" stroke={PALETTE.gridStrong} strokeWidth="1" strokeDasharray="2 6"
+                transform="rotate(8 960 540)" opacity="0.6"/>
+            </svg>
+
+            {/* Mark — concentric arcs evoking SAR/orbit */}
+            <div style={{
+              position: 'absolute', left: 960, top: 280,
+              transform: `translate(-50%, -50%) scale(${markScale})`,
+              opacity: markOp,
+            }}>
+              <ANZURAMark localTime={localTime}/>
+            </div>
+
+            {/* Eyebrow: ANZURA */}
+            <div style={{
+              position: 'absolute', left: 0, right: 0, top: 410,
+              textAlign: 'center',
+              fontFamily: SANS, fontSize: 28, fontWeight: 500,
+              color: PALETTE.inkDim, letterSpacing: '0.6em',
+              opacity: animate({ from: 0, to: 1, start: 0.6, end: 1.2 })(localTime),
+            }}>
+              ANZURA
+            </div>
+
+            {/* Main lockup: 'InSAR' big light + 'Ground Displacement' below */}
+            <div style={{
+              position: 'absolute', left: 0, right: 0, top: 470,
+              display: 'flex', justifyContent: 'center',
+              fontFamily: SANS, fontWeight: 200, fontSize: 220,
+              letterSpacing: '-0.02em',
+            }}>
+              {'InSAR'.split('').map((ch, i) => {
+                const start = 0.85 + i * 0.07;
+                const t = animate({ from: 0, to: 1, start, end: start + 0.5, ease: Easing.easeOutCubic })(localTime);
+                const isUpper = ch === 'S' || ch === 'A' || ch === 'R';
+                return (
+                  <span key={i} style={{
+                    display: 'inline-block',
+                    opacity: t,
+                    transform: `translateY(${(1 - t) * 32}px)`,
+                    fontWeight: isUpper ? 600 : 200,
+                    color: isUpper ? PALETTE.cold : PALETTE.ink,
+                  }}>{ch}</span>
+                );
+              })}
+            </div>
+            <div style={{
+              position: 'absolute', left: 0, right: 0, top: 700,
+              display: 'flex', justifyContent: 'center',
+              fontFamily: SANS, fontWeight: 300, fontSize: 76,
+              color: PALETTE.ink, letterSpacing: '0.08em',
+            }}>
+              {'GROUND  DISPLACEMENT'.split('').map((ch, i) => {
+                const start = 1.6 + i * 0.04;
+                const t = animate({ from: 0, to: 1, start, end: start + 0.45, ease: Easing.easeOutCubic })(localTime);
+                return (
+                  <span key={i} style={{
+                    display: 'inline-block',
+                    opacity: t,
+                    transform: `translateY(${(1 - t) * 18}px)`,
+                    minWidth: ch === ' ' ? '0.35em' : 'auto',
+                  }}>{ch === ' ' ? '\u00A0' : ch}</span>
+                );
+              })}
+            </div>
+
+            {/* Underline */}
+            <div style={{
+              position: 'absolute', left: '50%', top: 820,
+              transform: 'translateX(-50%)',
+              width: lineWidth, height: 2,
+              background: PALETTE.cold,
+            }}/>
+
+            {/* Tagline */}
+            <div style={{
+              position: 'absolute', left: 0, right: 0, top: 850,
+              textAlign: 'center',
+              fontFamily: MONO, fontSize: 20, color: PALETTE.inkDim,
+              letterSpacing: '0.5em',
+              opacity: taglineOp,
+            }}>
+              UYDU · RADAR · mm SEVİYESİNDE TAKİP
+            </div>
+
+            {/* Bottom credentials strip */}
+            <div style={{
+              position: 'absolute', left: 0, right: 0, bottom: 80,
+              display: 'flex', justifyContent: 'center', gap: 80,
+              fontFamily: MONO, fontSize: 14, color: PALETTE.inkDim,
+              letterSpacing: '0.22em',
+              opacity: stripOp,
+            }}>
+              <div><span style={{ color: PALETTE.signal }}>●</span> mm SEVİYESİNDE HASSASİYET</div>
+              <div><span style={{ color: PALETTE.signal }}>●</span> SÜREKLİ İZLEME</div>
+              <div><span style={{ color: PALETTE.signal }}>●</span> KANIT NİTELİĞİNDE VERİ</div>
+            </div>
+
+            <HUDFrame opacity={fadeIn * 0.6} label="" />
+          </div>
+        );
+      }}
+    </Sprite>
+  );
+}
+
+// The mark: 3 concentric arcs (representing orbits / SAR sweeps) + a center pulse
+function ANZURAMark({ localTime }) {
+  const size = 240;
+  const cx = size / 2, cy = size / 2;
+  // Arc reveal lengths drive stroke-dasharray
+  const sweep = animate({ from: 0, to: 1, start: 0.2, end: 1.4, ease: Easing.easeInOutCubic })(localTime);
+  const pulse = 0.7 + 0.3 * Math.sin(localTime * 3);
+  // Three arcs at different radii / rotations
+  const arcs = [
+    { r: 100, rot: -30, len: 220, color: PALETTE.cold,    width: 2.5 },
+    { r: 80,  rot:  60, len: 180, color: PALETTE.cool,    width: 2 },
+    { r: 60,  rot: 140, len: 130, color: PALETTE.warm,    width: 2 },
+  ];
+  return (
+    <svg width={size} height={size}>
+      {arcs.map((a, i) => {
+        const circ = 2 * Math.PI * a.r;
+        const visible = a.len * sweep;
+        return (
+          <circle
+            key={i}
+            cx={cx} cy={cy} r={a.r}
+            fill="none"
+            stroke={a.color}
+            strokeWidth={a.width}
+            strokeDasharray={`${visible} ${circ}`}
+            strokeLinecap="round"
+            transform={`rotate(${a.rot} ${cx} ${cy})`}
+            opacity={0.85}
+          />
+        );
+      })}
+      {/* Center dot — represents target / measurement point */}
+      <circle cx={cx} cy={cy} r={6} fill={PALETTE.ink} opacity={pulse}/>
+      <circle cx={cx} cy={cy} r={14} fill="none" stroke={PALETTE.ink} strokeWidth="1" opacity={pulse * 0.5}/>
+      {/* Small target ticks */}
+      {[0, 90, 180, 270].map((deg, i) => (
+        <line key={i}
+          x1={cx + Math.cos(deg * Math.PI / 180) * 24}
+          y1={cy + Math.sin(deg * Math.PI / 180) * 24}
+          x2={cx + Math.cos(deg * Math.PI / 180) * 32}
+          y2={cy + Math.sin(deg * Math.PI / 180) * 32}
+          stroke={PALETTE.ink} strokeWidth="1.5" opacity={0.7}
+        />
+      ))}
+    </svg>
+  );
+}
+
+Object.assign(window, { Scene5Logo });
+
+</script>
+
+<script type="text/babel">
+function App() {
+  return (
+    <Stage width={1920} height={1080} duration={32} background="#05070d" loop={true} autoplay={true} persistKey="anzura-insar-intro-v2" controls={false}>
+      <Scene1Boot />
+      <Scene2Satellite />
+      <Scene3Interferogram />
+      <ScenePhaseUnwrap />
+      <Scene4Measurement />
+      <Scene5Logo />
+    </Stage>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
