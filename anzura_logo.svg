@@ -1,0 +1,10 @@
+﻿<svg width="780" height="230" viewBox="0 0 780 230" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g fill="#3E2819">
+    <path d="M118 24L139 55H169L144 73L153 103L126 85L99 103L108 73L83 55H113L118 24Z"/>
+    <path d="M72 126L118 86L164 126H72Z"/>
+  </g>
+  <g fill="#3E2819" font-family="Inter, Arial, sans-serif" letter-spacing="4">
+    <text x="188" y="124" font-size="86" font-weight="800">ANZURA</text>
+    <text x="192" y="176" font-size="38" font-weight="500">MADENCİLİK</text>
+  </g>
+</svg>
