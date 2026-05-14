@@ -460,7 +460,7 @@ function Stage({
             background,
             position: 'relative',
             transform: `scale(${scale})`,
-            transformOrigin: 'center',
+            transformOrigin: frameY === 'start' ? 'top center' : 'center',
             flexShrink: 0,
             boxShadow: shadow ? '0 20px 60px rgba(0,0,0,0.4)' : 'none',
             overflow: 'hidden',

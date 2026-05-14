@@ -20,7 +20,7 @@ function App() {
       loop={true}
       controls={!heroMode}
       fit={heroMode && !portraitHero ? 'cover' : 'contain'}
-      frameY={portraitHero ? 'start' : 'center'}
+      frameY={heroMode ? 'start' : 'center'}
       initialTime={heroMode ? 0.8 : 0}
       shadow={!heroMode}
       persistKey={heroMode ? 'anzura-intro-hero-20260514' : 'anzura-intro-modal'}

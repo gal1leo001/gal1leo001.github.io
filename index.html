@@ -9,16 +9,16 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,200;0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="styles-v2.css?v=20260514-mobile-intro-topgap">
+  <link rel="stylesheet" href="styles-v2.css?v=20260514-mobile-intro-frame-top">
   <style data-mobile-intro-restore>
   @media (max-width: 768px), (max-device-width: 768px) {
     body.v2 .hero-v2 { background: transparent !important; }
     body.v2 .hero-v2 .hero-media--intro {
       display: block !important;
-      --mobile-intro-lift: clamp(390px, 48svh, 430px);
-      top: calc(var(--mobile-intro-lift) * -1) !important;
+      --mobile-intro-height: 100%;
+      top: 0 !important;
       bottom: auto !important;
-      height: calc(100% + var(--mobile-intro-lift)) !important;
+      height: var(--mobile-intro-height) !important;
       object-fit: fill !important;
       object-position: center top !important;
     }
@@ -70,7 +70,7 @@
     <section class="hero-v2">
       <iframe
         class="hero-media hero-media--intro"
-        src="assets/intro2/index.html?hero=1&v=20260514-mobile-intro-topgap"
+        src="assets/intro2/index.html?hero=1&v=20260514-mobile-intro-frame-top"
         title="ANZURA tanıtım — yörüngeden cevhere"
         loading="eager"
         allow="autoplay"
