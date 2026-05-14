@@ -242,7 +242,7 @@ function ImageSprite({
   const content = placeholder ? (
     <div style={{
       width: '100%', height: '100%',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      display: 'flex', alignItems: frameY === 'start' ? 'flex-start' : 'center', justifyContent: 'center',
       background: 'repeating-linear-gradient(135deg, #e9e6df 0 10px, #dcd8cf 10px 20px)',
       color: '#6b6458',
       fontFamily: 'JetBrains Mono, ui-monospace, monospace',
@@ -330,15 +330,21 @@ function Stage({
   autoplay = true,
   controls = true,
   fit = 'contain',
+  frameY = 'center',
+  initialTime = 0,
   shadow = true,
   persistKey = 'animstage',
   children,
 }) {
   const [time, setTime] = React.useState(() => {
     try {
-      const v = parseFloat(localStorage.getItem(persistKey + ':t') || '0');
-      return isFinite(v) ? clamp(v, 0, duration) : 0;
-    } catch { return 0; }
+      const stored = localStorage.getItem(persistKey + ':t');
+      if (stored != null) {
+        const v = parseFloat(stored);
+        return isFinite(v) ? clamp(v, 0, duration) : clamp(initialTime, 0, duration);
+      }
+      return clamp(initialTime, 0, duration);
+    } catch { return clamp(initialTime, 0, duration); }
   });
   const [playing, setPlaying] = React.useState(autoplay);
   const [hoverTime, setHoverTime] = React.useState(null);
@@ -443,7 +449,7 @@ function Stage({
       <div style={{
         flex: 1,
         width: '100%',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', alignItems: frameY === 'start' ? 'flex-start' : 'center', justifyContent: 'center',
         overflow: 'hidden',
         minHeight: 0,
       }}>
@@ -650,7 +656,7 @@ function IconButton({ children, onClick, title }) {
       onMouseLeave={() => setHover(false)}
       style={{
         width: 28, height: 28,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', alignItems: frameY === 'start' ? 'flex-start' : 'center', justifyContent: 'center',
         background: hover ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)',
         border: '1px solid rgba(255,255,255,0.1)',
         borderRadius: 6,

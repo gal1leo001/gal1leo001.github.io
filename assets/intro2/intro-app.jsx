@@ -5,6 +5,7 @@ const { useState, useEffect, useRef } = React;
 function App() {
   const params = new URLSearchParams(window.location.search);
   const heroMode = params.get('hero') === '1' || params.get('mode') === 'hero' || window.location.href.includes('hero=1');
+  const portraitHero = heroMode && (window.innerWidth <= 768 || window.innerHeight > window.innerWidth);
 
   // Use Stage with autoplay + loop. Stage exports a scrubber by default;
   // we want a clean autoplay loop with no chrome for the intro presentation.
@@ -18,9 +19,11 @@ function App() {
       autoplay={true}
       loop={true}
       controls={!heroMode}
-      fit="contain"
+      fit={heroMode && !portraitHero ? 'cover' : 'contain'}
+      frameY={portraitHero ? 'start' : 'center'}
+      initialTime={heroMode ? 0.8 : 0}
       shadow={!heroMode}
-      persistKey={heroMode ? 'anzura-intro-hero' : 'anzura-intro-modal'}
+      persistKey={heroMode ? 'anzura-intro-hero-20260514' : 'anzura-intro-modal'}
     >
       <Intro />
     </Stage>
