@@ -1,5 +1,5 @@
 name: Apply mobile intro lift
-# retrigger: 2026-05-14T10:48+03:00
+# retrigger: 2026-05-14T10:53+03:00
 
 on:
   push:
@@ -31,42 +31,49 @@ jobs:
           s = index.read_text(encoding='utf-8')
           s = s.replace('styles-v2.css?v=20260514-mobile-intro', 'styles-v2.css?v=20260514-mobile-intro-lift')
           s = s.replace('assets/intro2/index.html?hero=1&v=20260514-mobile-intro', 'assets/intro2/index.html?hero=1&v=20260514-mobile-intro-lift')
-          old_inline = """      body.v2 .hero-v2 .hero-media--intro {
-        display: block !important;
-        object-fit: fill !important;
-        object-position: center top !important;
-      }
-"""
-          new_inline = """      body.v2 .hero-v2 .hero-media--intro {
-        display: block !important;
-        --mobile-intro-lift: clamp(220px, 34svh, 320px);
-        top: calc(var(--mobile-intro-lift) * -1) !important;
-        bottom: auto !important;
-        height: calc(100% + var(--mobile-intro-lift)) !important;
-        object-fit: fill !important;
-        object-position: center top !important;
-      }
-"""
+          old_inline = '\n'.join([
+              '      body.v2 .hero-v2 .hero-media--intro {',
+              '        display: block !important;',
+              '        object-fit: fill !important;',
+              '        object-position: center top !important;',
+              '      }',
+              '',
+          ])
+          new_inline = '\n'.join([
+              '      body.v2 .hero-v2 .hero-media--intro {',
+              '        display: block !important;',
+              '        --mobile-intro-lift: clamp(220px, 34svh, 320px);',
+              '        top: calc(var(--mobile-intro-lift) * -1) !important;',
+              '        bottom: auto !important;',
+              '        height: calc(100% + var(--mobile-intro-lift)) !important;',
+              '        object-fit: fill !important;',
+              '        object-position: center top !important;',
+              '      }',
+              '',
+          ])
           if '--mobile-intro-lift' not in s:
               s = s.replace(old_inline, new_inline)
           write_if_changed(index, s)
 
           css = Path('styles-v2.css')
           s = css.read_text(encoding='utf-8')
-          old_mobile_hero = """  body.v2 .hero-v2 {
-    min-height: calc(100svh - var(--site-chrome-height));
-    height: calc(100svh - var(--site-chrome-height));
-    background: transparent;
-  }
-"""
-          new_mobile_hero = old_mobile_hero + """
-  body.v2 .hero-v2 .hero-media--intro {
-    --mobile-intro-lift: clamp(220px, 34svh, 320px);
-    top: calc(var(--mobile-intro-lift) * -1);
-    bottom: auto;
-    height: calc(100% + var(--mobile-intro-lift));
-  }
-"""
+          old_mobile_hero = '\n'.join([
+              '  body.v2 .hero-v2 {',
+              '    min-height: calc(100svh - var(--site-chrome-height));',
+              '    height: calc(100svh - var(--site-chrome-height));',
+              '    background: transparent;',
+              '  }',
+              '',
+          ])
+          new_mobile_hero = old_mobile_hero + '\n'.join([
+              '  body.v2 .hero-v2 .hero-media--intro {',
+              '    --mobile-intro-lift: clamp(220px, 34svh, 320px);',
+              '    top: calc(var(--mobile-intro-lift) * -1);',
+              '    bottom: auto;',
+              '    height: calc(100% + var(--mobile-intro-lift));',
+              '  }',
+              '',
+          ])
           if '--mobile-intro-lift' not in s:
               s = s.replace(old_mobile_hero, new_mobile_hero)
           write_if_changed(css, s)
