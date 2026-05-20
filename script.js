@@ -95,20 +95,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Static hosting cannot receive POST requests. Submit through a form
-  // backend in a hidden iframe so users do not leave the page.
+  // Static hosting cannot receive POST requests. Send contact requests
+  // through CodeFreeForm and use the JSON response as the source of truth.
   const contactForm = document.querySelector('[data-contact-form]') || document.querySelector('.premium-form');
   if (contactForm) {
     let status = contactForm.querySelector('[data-form-status]');
     const submitButton = contactForm.querySelector('button[type="submit"]');
-    const frameName = 'contact-submit-frame';
-    let submitStarted = false;
-    let timeoutId;
+    const originalButtonHtml = submitButton ? submitButton.innerHTML : '';
 
-    contactForm.action = 'https://email.gosecureserver.in/api/send.php';
+    contactForm.action = 'https://codefreeform.com/api/contact-api/';
     contactForm.method = 'POST';
     contactForm.acceptCharset = 'utf-8';
-    contactForm.target = frameName;
+    contactForm.removeAttribute('target');
 
     const ensureHidden = (name, value) => {
       let input = contactForm.querySelector(`input[name="${name}"]`);
@@ -121,10 +119,9 @@ document.addEventListener('DOMContentLoaded', () => {
       input.value = value;
     };
 
-    ensureHidden('to', 'info@anzura.com.tr');
+    ensureHidden('access_key', '987217');
     ensureHidden('subject', 'ANZURA Kurumsal Teklif Talebi');
     ensureHidden('source_url', window.location.href);
-    ensureHidden('hp_email', '');
 
     if (!status && submitButton) {
       status = document.createElement('p');
@@ -138,47 +135,51 @@ document.addEventListener('DOMContentLoaded', () => {
       submitButton.parentNode.insertBefore(status, submitButton);
     }
 
-    let submitFrame = document.querySelector(`iframe[name="${frameName}"]`);
-    if (!submitFrame) {
-      submitFrame = document.createElement('iframe');
-      submitFrame.name = frameName;
-      submitFrame.title = 'Form gönderim kanalı';
-      submitFrame.hidden = true;
-      contactForm.insertAdjacentElement('afterend', submitFrame);
-    }
-
-    const setButtonState = (disabled) => {
-      if (!submitButton) return;
-      submitButton.disabled = disabled;
-      submitButton.style.opacity = disabled ? '0.72' : '';
+    const setStatus = (message, type = '') => {
+      if (!status) return;
+      status.className = `form-status${type ? ` is-${type}` : ''}`;
+      status.textContent = message;
     };
 
-    submitFrame.addEventListener('load', () => {
-      if (!submitStarted) return;
-      submitStarted = false;
-      window.clearTimeout(timeoutId);
-      setButtonState(false);
-      contactForm.reset();
-      if (status) {
-        status.textContent = 'Talebiniz gönderildi. Ekibimiz en kısa sürede dönüş yapacak.';
+    contactForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!contactForm.checkValidity()) {
+        contactForm.reportValidity();
+        return;
       }
-    });
 
-    contactForm.addEventListener('submit', () => {
-      submitStarted = true;
-      setButtonState(true);
-      if (status) {
-        status.textContent = 'Talebiniz gönderiliyor.';
+      const payload = Object.fromEntries(new FormData(contactForm));
+      payload.source_url = window.location.href;
+
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.innerHTML = 'Gönderiliyor...';
       }
-      window.clearTimeout(timeoutId);
-      timeoutId = window.setTimeout(() => {
-        if (!submitStarted) return;
-        submitStarted = false;
-        setButtonState(false);
-        if (status) {
-          status.textContent = 'Gönderim beklenenden uzun sürdü. Lütfen tekrar deneyin veya info@anzura.com.tr adresine yazın.';
+      setStatus('Talebiniz gönderiliyor.');
+
+      try {
+        const response = await fetch(contactForm.action, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success === false || data.email_status === 'failed') {
+          throw new Error(data.message || `HTTP ${response.status}`);
         }
-      }, 12000);
+        contactForm.reset();
+        setStatus('Talebiniz gönderildi. Ekibimiz en kısa sürede dönüş yapacak.', 'success');
+      } catch (error) {
+        setStatus('Form servisi yanıt vermedi. Lütfen info@anzura.com.tr adresine yazın.', 'error');
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.innerHTML = originalButtonHtml;
+        }
+      }
     });
   }
 
