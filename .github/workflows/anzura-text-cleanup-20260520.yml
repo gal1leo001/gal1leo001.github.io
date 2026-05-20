@@ -1,0 +1,205 @@
+name: ANZURA text cleanup
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.codex-trigger/text-cleanup-20260520-0945.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.actor != 'github-actions[bot]' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clean desktop text and encoding artifacts
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          root = Path('.')
+          impact_html = '''<div class="about-v2-impact reveal" style="transition-delay: 150ms;">
+              <span class="impact-kicker">Karar Altyapısı</span>
+              <h3>Sahadan yönetime uzanan tek mühendislik akışı.</h3>
+              <p>ANZURA, ham saha verisini; riskleri, fırsatları ve uygulanabilir adımları görünür kılan karar çıktısına dönüştürür.</p>
+              <ul>
+                <li>Saha gözlemi, ölçüm ve model aynı izlenebilir veri zincirinde birleşir.</li>
+                <li>Belirsizlikler erken görünür olur; zaman, maliyet ve emniyet etkisi birlikte okunur.</li>
+                <li>Teslimler harita, model, karar notu ve aksiyon planı olarak sahada kullanılabilir hale gelir.</li>
+              </ul>
+            </div>'''
+
+          impact_css = '''
+          .about-v2-impact {
+            border-top: 1px solid var(--ink-200);
+            padding-top: 26px;
+            max-width: 560px;
+          }
+          .about-v2-impact .impact-kicker {
+            display: inline-block;
+            margin-bottom: 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--accent);
+          }
+          .about-v2-impact h3 {
+            margin: 0 0 18px;
+            font-family: 'Newsreader', serif;
+            font-weight: 350;
+            font-size: clamp(1.55rem, 2.4vw, 2.25rem);
+            line-height: 1.12;
+            letter-spacing: -0.015em;
+            color: var(--ink-900);
+          }
+          .about-v2-impact p {
+            margin: 0 0 20px;
+            max-width: 42ch;
+            color: var(--ink-600);
+            line-height: 1.65;
+          }
+          .about-v2-impact ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            border-top: 1px solid var(--ink-200);
+          }
+          .about-v2-impact li {
+            position: relative;
+            padding: 14px 0 14px 22px;
+            border-bottom: 1px solid var(--ink-200);
+            color: var(--ink-700);
+            line-height: 1.5;
+          }
+          .about-v2-impact li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 22px;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--accent);
+          }
+          '''
+
+          def read(path):
+              return path.read_text(encoding='utf-8')
+
+          def write(path, text):
+              path.write_text(text, encoding='utf-8')
+
+          def clean_common(text):
+              replacements = {
+                  'JORC · NI 43-101': 'Kaynak · Rezerv · Model',
+                  'JORC 2012 · MEASURED RESOURCE': 'RESOURCE CONFIDENCE',
+                  '<span>JORC 2012</span>': '<span>Saha Verisi</span>',
+                  '<span>NI 43-101</span>': '<span>Kaynak Modeli</span>',
+                  '<span>ISO 9001</span>': '<span>Risk Analizi</span>',
+                  '<span>ÇED</span>': '<span>Karar Raporu</span>',
+                  "{k: 'QA/QC', v: 'ISO 17025'}": "{k: 'QA/QC', v: 'Lab zinciri'}",
+                  "tag: 'ÇED · Su · Hava'": "tag: 'Su · Hava · İzleme'",
+                  "{k: 'ÇED', v: 'Onaylı · 2026 Q1'}": "{k: 'İzleme', v: 'Saha verisi'}",
+                  'QA / QC · ISO 17025': 'QA / QC · LAB CHAIN',
+                  'ÇED · ENVIRONMENTAL': 'ENVIRONMENTAL MONITORING',
+                  '{/* ÇED compliance plate */}': '{/* Environmental monitoring plate */}',
+                  '§ {d.n} / 06': '{d.n} / 06',
+                  '§</span>&nbsp;&nbsp;Tanıtım sekansı': '•</span>&nbsp;&nbsp;Tanıtım sekansı',
+                  '§</span>&nbsp;&nbsp;Disiplinler': '•</span>&nbsp;&nbsp;Disiplinler',
+                  '§</span>&nbsp;&nbsp;Madencilik': '•</span>&nbsp;&nbsp;Madencilik',
+                  'JORC ve NI 43-101 uyumlu raporlama disipliniyle teslim ediyoruz.': 'denetime açık, izlenebilir teknik raporlama disipliniyle teslim ediyoruz.',
+                  '<strong>JORC</strong><span>Uyumlu Raporlama</span>': '<strong>İzlenebilir</strong><span>Teknik Raporlama</span>',
+                  '<strong>NI 43-101</strong><span>Uyumlu Raporlama</span>': '<strong>Karar Paketi</strong><span>Teknik Raporlama</span>',
+                  '<strong>Kriging</strong><span>Jeoistatistik Metodolojisi</span>': '<strong>Belirsizlik</strong><span>Model Doğrulama</span>',
+                  '<li>Sınıflandırılmış rezerv raporu</li>': '<li>İzlenebilir kaynak ve karar raporu</li>',
+                  'ÇED &amp; Uyum': 'Çevresel Uyum',
+                  'ÇED · Hava · Su · Atık': 'Çevresel İzleme · Hava · Su',
+                  'Su ve hava kalitesi, ÇED başvuru süreçleri ve atık yönetimi projeleri.': 'Su ve hava kalitesi, çevresel uyum ve atık yönetimi projeleri.',
+                  'Su ve hava kalitesi izleme, ÇED hazırlık süreçleri ve atık yönetimi; sürdürülebilir operasyon için uyum mühendisliği.': 'Su ve hava kalitesi izleme, çevresel izin ve uyum süreçleri; sürdürülebilir operasyon için uyum mühendisliği.',
+                  'ÇED süreçlerinden kapanış planlamasına kadar': 'izin ve uyum süreçlerinden kapanış planlamasına kadar',
+                  'ÇED başvuru ve saha dokümantasyonu': 'Çevresel izin ve saha dokümantasyonu',
+                  '<strong>ÇED</strong><span>Bakanlık Uyumu</span>': '<strong>Uyum</strong><span>Saha Dokümanı</span>',
+                  'ÇED dosyası ve ekleri': 'Çevresel uyum dosyası ve ekleri',
+              }
+              for old, new in replacements.items():
+                  text = text.replace(old, new)
+              return text.replace('§', '•')
+
+          index_path = root / 'index.html'
+          index = clean_common(read(index_path))
+          index = re.sub(r'\n\s*<span class="head-num(?: [^"]*)?">[^<]*</span>', '', index)
+          index = re.sub(r'\n\s*<span class="svc-num">[^<]*</span>', '', index)
+          index = re.sub(r'<dl class="about-v2-specs[^>]*>.*?</dl>', impact_html, index, flags=re.S)
+          index = index.replace('<span class="svc-tag">3D Model · Rezerv · Jeoistatistik</span>', '<span class="svc-tag">3D Model · Kaynak · Belirsizlik</span>')
+          index = index.replace('Blok model ve kriging tabanlı kestirim; JORC / NI 43-101 uyumlu sınıflandırılmış kaynak-rezerv tablosu.', 'Sondaj ve jeolojik veriden izlenebilir blok model, kaynak yorumu ve karar destek çıktısı.')
+          index = index.replace('Veriyi 3D modelleme yazılımları ile uluslararası standartlara uygun yorumluyoruz. Kaynak modeli ve risk senaryoları bu aşamada kurulur.', 'Veriyi 3D modelleme ve jeoistatistik yaklaşımlarıyla izlenebilir karar altyapısına dönüştürüyoruz. Kaynak modeli ve risk senaryoları bu aşamada kurulur.')
+          index = index.replace('Risk, fizibilite ve nihai tasarım projelerini sahada uygulanabilir formatlarda teslim ediyoruz. Bağımsız denetime açık, şeffaf raporlama standardımızdır.', 'Risk, fizibilite ve nihai tasarım projelerini sahada uygulanabilir formatlarda teslim ediyoruz. Her çıktı, karar notu ve aksiyon planıyla birlikte okunabilir hale gelir.')
+          index = index.replace('<li>JORC / NI 43-101 raporu</li>', '<li>Teknik sonuç raporu</li>')
+          index = re.sub(r'<div class="footer-ticker">\s*<div class="ticker-track">.*?</div>\s*</div>', '''<div class="footer-ticker">
+            <div class="ticker-track">
+              <span>Saha Verisi</span><span>·</span>
+              <span>Kaynak Modeli</span><span>·</span>
+              <span>Risk Analizi</span><span>·</span>
+              <span>Karar Raporu</span><span>·</span>
+              <span>AR-GE · Teknokent</span><span>·</span>
+              <span>Saha Verisi</span><span>·</span>
+              <span>Kaynak Modeli</span><span>·</span>
+              <span>Risk Analizi</span><span>·</span>
+              <span>Karar Raporu</span><span>·</span>
+              <span>AR-GE · Teknokent</span>
+            </div>
+          </div>''', index, flags=re.S)
+          write(index_path, index)
+
+          styles_path = root / 'styles-v2.css'
+          styles = read(styles_path)
+          styles = styles.replace('ANZURA v2 â€” Editorial upgrade layer', 'ANZURA v2 - Editorial upgrade layer')
+          styles = styles.replace("content: 'â€”';", "content: '-';")
+          styles = styles.replace("content: 'â€œ';", "content: '\"';")
+          styles = styles.replace("content: 'KeÅŸif';", "content: 'Keşif';")
+          styles = styles.replace("content: 'KapanÄ±ÅŸ';", "content: 'Kapanış';")
+          if '.about-v2-impact' not in styles:
+              styles = styles.replace('.spec-row {', impact_css + '\n.spec-row {')
+          write(styles_path, styles)
+
+          for path in [root / 'assets/intro2/intro-scenes.jsx', root / 'assets/intro2/index.html']:
+              if path.exists():
+                  write(path, clean_common(read(path)))
+
+          for path in (root / 'hizmetler').glob('*.html'):
+              write(path, clean_common(read(path)))
+
+          offenders = []
+          pattern = re.compile(r'(§|JORC|NI 43|Leapfrog|Surpac|Conditional|ISO 9001|ISO 17025|ÇED|İSG|Bakanlık|â€œ|KeÅ|KapanÄ)')
+          for path in [index_path, styles_path, root / 'assets/intro2/intro-scenes.jsx', root / 'assets/intro2/index.html', *sorted((root / 'hizmetler').glob('*.html'))]:
+              if path.exists():
+                  text = read(path)
+                  if pattern.search(text):
+                      offenders.append(str(path))
+          if offenders:
+              print('Remaining forbidden text:', offenders)
+              sys.exit(1)
+          PY
+
+      - name: Commit cleanup
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html styles-v2.css assets/intro2/intro-scenes.jsx assets/intro2/index.html hizmetler/*.html
+          git commit -m "Clean ANZURA desktop text and encoding"
+          git push
