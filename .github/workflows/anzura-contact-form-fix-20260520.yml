@@ -1,0 +1,170 @@
+name: ANZURA contact form fix
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.codex-trigger/contact-form-fix-20260520-1010.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wire contact form to mail endpoint
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          form_open = '<form class="premium-form" action="https://formsubmit.co/ajax/info@anzura.com.tr" method="POST" data-contact-form data-fallback-email="info@anzura.com.tr">'
+          hidden_fields = '''            <input type="hidden" name="_subject" value="ANZURA Kurumsal Teklif Talebi">
+            <input type="hidden" name="_template" value="table">
+            <input type="hidden" name="_captcha" value="false">
+            <input type="text" name="_honey" tabindex="-1" autocomplete="off" aria-hidden="true" style="display:none">
+'''
+          status_html = '            <p class="form-status" data-form-status role="status" aria-live="polite"></p>\n'
+
+          css_block = '''.form-status {
+  min-height: 22px;
+  margin: -4px 0 18px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--ink-500);
+}
+.form-status.is-success { color: #2f6b45; }
+.form-status.is-error { color: #9b2f1f; }
+.form-status a {
+  color: inherit;
+  border-bottom: 1px solid currentColor;
+}
+.premium-form .btn[disabled] {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+'''
+
+          js_block = r'''
+  // Static hosting cannot receive POST requests; send contact forms through
+  // FormSubmit and keep a mailto fallback if the remote endpoint fails.
+  const contactForm = document.querySelector('[data-contact-form]');
+  if (contactForm) {
+    const status = contactForm.querySelector('[data-form-status]');
+    const submitButton = contactForm.querySelector('button[type="submit"]');
+    const fallbackEmail = contactForm.dataset.fallbackEmail || 'info@anzura.com.tr';
+    const originalButtonHtml = submitButton ? submitButton.innerHTML : '';
+
+    const setStatus = (message, type = '') => {
+      if (!status) return;
+      status.className = `form-status${type ? ` is-${type}` : ''}`;
+      status.innerHTML = message;
+    };
+
+    contactForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!contactForm.checkValidity()) {
+        contactForm.reportValidity();
+        return;
+      }
+
+      const formData = new FormData(contactForm);
+      formData.set('_url', window.location.href);
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.innerHTML = 'Gönderiliyor...';
+      }
+      setStatus('Talebiniz güvenli şekilde gönderiliyor.');
+
+      try {
+        const response = await fetch(contactForm.action, {
+          method: 'POST',
+          headers: { Accept: 'application/json' },
+          body: formData,
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        contactForm.reset();
+        setStatus('Talebiniz alındı. Ekibimiz en kısa sürede dönüş yapacak.', 'success');
+      } catch (error) {
+        const name = contactForm.elements.name?.value || '';
+        const email = contactForm.elements.email?.value || '';
+        const service = contactForm.elements.service?.value || '';
+        const message = contactForm.elements.message?.value || '';
+        const subject = encodeURIComponent('ANZURA Kurumsal Teklif Talebi');
+        const body = encodeURIComponent([
+          `Firma / Ad Soyad: ${name}`,
+          `Kurumsal E-posta: ${email}`,
+          `İlgilenilen Hizmet: ${service}`,
+          '',
+          'Proje Özeti:',
+          message,
+        ].join('\n'));
+        setStatus(`Gönderim servisi yanıt vermedi. <a href="mailto:${fallbackEmail}?subject=${subject}&body=${body}">E-posta uygulamasıyla gönder</a>.`, 'error');
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.innerHTML = originalButtonHtml;
+        }
+      }
+    });
+  }
+'''
+
+          index_path = Path('index.html')
+          index = index_path.read_text(encoding='utf-8')
+          index = re.sub(r'<form class="premium-form"[^>]*>', form_open, index, count=1)
+          if 'name="_subject" value="ANZURA Kurumsal Teklif Talebi"' not in index:
+              index = index.replace(form_open + '\n', form_open + '\n' + hidden_fields, 1)
+          if 'data-form-status' not in index:
+              index = index.replace('            <button type="submit" class="btn btn-primary btn-block">Talebi gönder', status_html + '            <button type="submit" class="btn btn-primary btn-block">Talebi gönder', 1)
+          index_path.write_text(index, encoding='utf-8')
+
+          styles_path = Path('styles.css')
+          styles = styles_path.read_text(encoding='utf-8')
+          if '.form-status {' not in styles:
+              styles = styles.replace('.form-group textarea { resize: vertical; min-height: 90px; }\n\n', '.form-group textarea { resize: vertical; min-height: 90px; }\n' + css_block, 1)
+          styles_path.write_text(styles, encoding='utf-8')
+
+          script_path = Path('script.js')
+          script = script_path.read_text(encoding='utf-8')
+          if "document.querySelector('[data-contact-form]')" not in script:
+              stripped = script.rstrip()
+              if not stripped.endswith('});'):
+                  raise SystemExit('script.js does not end with DOMContentLoaded close')
+              script = stripped[:-3] + js_block + '\n});\n'
+          script_path.write_text(script, encoding='utf-8')
+
+          checks = {
+              'index.html': ['https://formsubmit.co/ajax/info@anzura.com.tr', 'data-contact-form', 'data-form-status'],
+              'styles.css': ['.form-status {'],
+              'script.js': ["document.querySelector('[data-contact-form]')", 'fetch(contactForm.action'],
+          }
+          for file_name, needles in checks.items():
+              text = Path(file_name).read_text(encoding='utf-8')
+              for needle in needles:
+                  if needle not in text:
+                      raise SystemExit(f'Missing {needle} in {file_name}')
+          if 'action="#"' in index:
+              raise SystemExit('old local form action still present')
+          PY
+
+      - name: Commit contact form fix
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html styles.css script.js
+          git commit -m "Fix static contact form submission"
+          git push
