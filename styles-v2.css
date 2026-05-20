@@ -1,5 +1,5 @@
 ﻿/* ============================================
-   ANZURA v2 â€” Editorial upgrade layer
+   ANZURA v2 - Editorial upgrade layer
    Loaded AFTER styles.css, overrides where needed
    ============================================ */
 
@@ -347,6 +347,60 @@ body.v2 .top-bar-meta .coords {
   border-top: 1px solid var(--ink-200);
   margin: 0;
 }
+
+.about-v2-impact {
+  border-top: 1px solid var(--ink-200);
+  padding-top: 26px;
+  max-width: 560px;
+}
+.about-v2-impact .impact-kicker {
+  display: inline-block;
+  margin-bottom: 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.about-v2-impact h3 {
+  margin: 0 0 18px;
+  font-family: 'Newsreader', serif;
+  font-weight: 350;
+  font-size: clamp(1.55rem, 2.4vw, 2.25rem);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  color: var(--ink-900);
+}
+.about-v2-impact p {
+  margin: 0 0 20px;
+  max-width: 42ch;
+  color: var(--ink-600);
+  line-height: 1.65;
+}
+.about-v2-impact ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--ink-200);
+}
+.about-v2-impact li {
+  position: relative;
+  padding: 14px 0 14px 22px;
+  border-bottom: 1px solid var(--ink-200);
+  color: var(--ink-700);
+  line-height: 1.5;
+}
+.about-v2-impact li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 22px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
 .spec-row {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
@@ -546,7 +600,7 @@ body.v2 .top-bar-meta .coords {
   justify-content: center;
 }
 .matrix-row .cell::before {
-  content: 'â€”';
+  content: '-';
   color: rgba(255,255,255,0.2);
   font-size: 1rem;
 }
@@ -691,7 +745,7 @@ body.v2 .top-bar-meta .coords {
   color: var(--accent);
 }
 .quote-v2 blockquote::before {
-  content: 'â€œ';
+  content: '"';
   position: absolute;
   left: -40px;
   top: -20px;
@@ -763,12 +817,12 @@ body.v2 .top-bar-meta .coords {
     letter-spacing: 0.12em;
     color: rgba(255,255,255,0.4);
   }
-  .matrix-row .cell:nth-child(2)::after { content: 'KeÅŸif'; }
+  .matrix-row .cell:nth-child(2)::after { content: 'Keşif'; }
   .matrix-row .cell:nth-child(3)::after { content: 'Arama'; }
   .matrix-row .cell:nth-child(4)::after { content: 'Kaynak'; }
   .matrix-row .cell:nth-child(5)::after { content: 'Fizibilite'; }
   .matrix-row .cell:nth-child(6)::after { content: 'Operasyon'; }
-  .matrix-row .cell:nth-child(7)::after { content: 'KapanÄ±ÅŸ'; }
+  .matrix-row .cell:nth-child(7)::after { content: 'Kapanış'; }
   .matrix-row .cell::before { order: 2; }
 }
 

@@ -785,7 +785,7 @@ const DISCIPLINES = [
     stats: [
       {k: 'Sondaj', v: '12 442 m'},
       {k: 'Numune', v: '8 360'},
-      {k: 'QA/QC', v: 'ISO 17025'},
+      {k: 'QA/QC', v: 'Lab zinciri'},
     ],
     Icon: IconDrill,
   },
@@ -793,7 +793,7 @@ const DISCIPLINES = [
     n: '03',
     tr: ['3D Cevher Modeli &', 'Kaynak Raporu'],
     en: 'Resource Modelling',
-    tag: 'JORC · NI 43-101',
+    tag: 'Kaynak · Rezerv · Model',
     stats: [
       {k: 'Blok', v: '5 × 5 × 5 m'},
       {k: 'Kestirim', v: 'OK · Kriging'},
@@ -829,10 +829,10 @@ const DISCIPLINES = [
     n: '06',
     tr: ['Çevresel İzleme &', 'Uyum'],
     en: 'Environmental Compliance',
-    tag: 'ÇED · Su · Hava',
+    tag: 'Su · Hava · İzleme',
     stats: [
       {k: 'İzleme', v: '148 nokta'},
-      {k: 'ÇED', v: 'Onaylı · 2026 Q1'},
+      {k: 'İzleme', v: 'Saha verisi'},
       {k: 'Frekans', v: '7/24'},
     ],
     Icon: IconEnv,
@@ -940,10 +940,10 @@ function Chrome() {
       }}>
         <span style={{opacity:0.55}}>ANZURA · MADENCİLİK VE MÜHENDİSLİK A.Ş.</span>
         <span style={{display:'flex',gap:24,opacity:0.55}}>
-          <span>JORC 2012</span>
-          <span>NI 43-101</span>
-          <span>ISO 9001</span>
-          <span>ÇED</span>
+          <span>Saha Verisi</span>
+          <span>Kaynak Modeli</span>
+          <span>Risk Analizi</span>
+          <span>Karar Raporu</span>
         </span>
         <span style={{opacity:0.55}}>EST. 2024</span>
       </div>
@@ -1030,7 +1030,7 @@ function ColdOpen() {
               color: T.ink, opacity: labelOp, marginBottom: 28,
               textTransform:'uppercase',
             }}>
-              <span style={{color: T.accent}}>§</span>&nbsp;&nbsp;Tanıtım sekansı  ·  Introduction sequence
+              <span style={{color: T.accent}}>•</span>&nbsp;&nbsp;Tanıtım sekansı  ·  Introduction sequence
             </div>
 
             {/* Big monogram number */}
@@ -1205,7 +1205,7 @@ function DisciplineCard({ idx }) {
                 <span style={{
                   display:'inline-block', width:6, height:6, background: T.accent,
                 }}/>
-                <span>§ {d.n} / 06</span>
+                <span>{d.n} / 06</span>
                 <span style={{opacity:0.4}}>·</span>
                 <span style={{opacity:0.7}}>Disiplin</span>
                 <span style={{opacity:0.4}}>·</span>
@@ -1539,7 +1539,7 @@ function IconDrill({ progress, holdT }) {
       </g>
       {/* QA/QC plate */}
       <g opacity={clamp((reveal - 0.7) * 3, 0, 1)} transform="translate(820, 920)">
-        <text x="0" y="0" fontFamily={T.mono} fontSize="11" letterSpacing="2.5" fill={T.muted}>QA / QC · ISO 17025</text>
+        <text x="0" y="0" fontFamily={T.mono} fontSize="11" letterSpacing="2.5" fill={T.muted}>QA / QC · LAB CHAIN</text>
         <text x="0" y="36" fontFamily={T.serif} fontStyle="italic" fontSize="44" fontWeight="300" fill={T.ink}>8 360 numune</text>
         <text x="0" y="60" fontFamily={T.mono} fontSize="11" letterSpacing="2" fill={T.accent}>BLANK ✓ · DUPLICATE ✓ · STANDARD ✓</text>
       </g>
@@ -1634,7 +1634,7 @@ function IconBlock({ progress, holdT }) {
 
       {/* tonnage callout */}
       <g opacity={clamp((reveal - 0.7) * 3, 0, 1)} transform="translate(880, 110)">
-        <text x="0" y="0" fontFamily={T.mono} fontSize="11" letterSpacing="3" fill={T.muted}>JORC 2012 · MEASURED RESOURCE</text>
+        <text x="0" y="0" fontFamily={T.mono} fontSize="11" letterSpacing="3" fill={T.muted}>RESOURCE CONFIDENCE</text>
         <text x="0" y="58" fontFamily={T.serif} fontStyle="italic" fontSize="68" fontWeight="300" fill={T.ink}>14.7 Mt</text>
         <text x="0" y="86" fontFamily={T.mono} fontSize="12" letterSpacing="2" fill={T.accent}>@ 1.18 g/t Au · 0.42 % Cu</text>
       </g>
@@ -2070,10 +2070,10 @@ function IconEnv({ progress, holdT }) {
         <text x="0" y="-26" textAnchor="middle" fontFamily={T.mono} fontSize="11" letterSpacing="2" fill={T.ink}>N</text>
       </g>
 
-      {/* ÇED compliance plate */}
+      {/* Environmental monitoring plate */}
       <g opacity={clamp((reveal - 0.7) * 3, 0, 1)} transform="translate(840, 130)">
         <rect width="280" height="68" fill={T.ink}/>
-        <text x="16" y="26" fontFamily={T.mono} fontSize="11" letterSpacing="3" fill={T.paper2}>ÇED · ENVIRONMENTAL</text>
+        <text x="16" y="26" fontFamily={T.mono} fontSize="11" letterSpacing="3" fill={T.paper2}>ENVIRONMENTAL MONITORING</text>
         <text x="16" y="56" fontFamily={T.serif} fontStyle="italic" fontSize="26" fontWeight="300" fill={T.paper}>Compliant · 2026 Q1</text>
       </g>
 
@@ -2127,7 +2127,7 @@ function ChainAssembly() {
               opacity: clamp(t/0.4, 0, 1),
               marginBottom: 60,
             }}>
-              <span style={{color: T.accent}}>§</span>&nbsp;&nbsp;Disiplinler · Tek mühendislik zinciri
+              <span style={{color: T.accent}}>•</span>&nbsp;&nbsp;Disiplinler · Tek mühendislik zinciri
             </div>
 
             {/* SVG chain */}
@@ -2291,7 +2291,7 @@ function LogoSting() {
               color: T.accent2, opacity: wipeT * 0.85,
               textTransform:'uppercase',
             }}>
-              <span style={{color: T.accent}}>§</span>&nbsp;&nbsp;Madencilik ve Mühendislik A.Ş.
+              <span style={{color: T.accent}}>•</span>&nbsp;&nbsp;Madencilik ve Mühendislik A.Ş.
             </div>
 
             {/* CENTER STAGE */}
@@ -2370,13 +2370,13 @@ function LogoSting() {
                 fontFamily: T.mono, fontSize: 12, letterSpacing:'0.32em',
                 color: T.paper, opacity: 0.7, textTransform:'uppercase',
               }}>
-                <span>JORC 2012</span>
+                <span>Saha Verisi</span>
                 <span style={{opacity:0.4}}>·</span>
-                <span>NI 43-101</span>
+                <span>Kaynak Modeli</span>
                 <span style={{opacity:0.4}}>·</span>
-                <span>ISO 9001</span>
+                <span>Risk Analizi</span>
                 <span style={{opacity:0.4}}>·</span>
-                <span>ÇED</span>
+                <span>Karar Raporu</span>
               </div>
               <div style={{
                 fontFamily: T.mono, fontSize: 11, letterSpacing:'0.28em',
