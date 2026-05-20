@@ -95,4 +95,83 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Static hosting cannot receive POST requests. Intercept the contact form
+  // before it posts to the page, then send it through FormSubmit instead.
+  const contactForm = document.querySelector('[data-contact-form]') || document.querySelector('.premium-form');
+  if (contactForm) {
+    const endpoint = 'https://formsubmit.co/ajax/info@anzura.com.tr';
+    const fallbackEmail = contactForm.dataset?.fallbackEmail || 'info@anzura.com.tr';
+    const submitButton = contactForm.querySelector('button[type="submit"]');
+    const originalButtonHtml = submitButton ? submitButton.innerHTML : '';
+    let status = contactForm.querySelector('[data-form-status]');
+
+    if (!status) {
+      status = document.createElement('p');
+      status.setAttribute('role', 'status');
+      status.setAttribute('aria-live', 'polite');
+      status.style.minHeight = '22px';
+      status.style.margin = '-4px 0 18px';
+      status.style.fontSize = '0.9rem';
+      status.style.lineHeight = '1.45';
+      status.style.color = 'var(--ink-500)';
+      submitButton?.parentNode?.insertBefore(status, submitButton);
+    }
+
+    const setStatus = (message, color = 'var(--ink-500)') => {
+      status.style.color = color;
+      status.innerHTML = message;
+    };
+
+    contactForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!contactForm.checkValidity()) {
+        contactForm.reportValidity();
+        return;
+      }
+
+      const formData = new FormData(contactForm);
+      formData.set('_subject', 'ANZURA Kurumsal Teklif Talebi');
+      formData.set('_template', 'table');
+      formData.set('_captcha', 'false');
+      formData.set('_url', window.location.href);
+
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.innerHTML = 'Gönderiliyor...';
+      }
+      setStatus('Talebiniz güvenli şekilde gönderiliyor.');
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { Accept: 'application/json' },
+          body: formData,
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        contactForm.reset();
+        setStatus('Talebiniz alındı. Ekibimiz en kısa sürede dönüş yapacak.', '#2f6b45');
+      } catch (error) {
+        const name = contactForm.elements.name?.value || '';
+        const email = contactForm.elements.email?.value || '';
+        const service = contactForm.elements.service?.value || '';
+        const message = contactForm.elements.message?.value || '';
+        const subject = encodeURIComponent('ANZURA Kurumsal Teklif Talebi');
+        const body = encodeURIComponent([
+          `Firma / Ad Soyad: ${name}`,
+          `Kurumsal E-posta: ${email}`,
+          `İlgilenilen Hizmet: ${service}`,
+          '',
+          'Proje Özeti:',
+          message,
+        ].join('\n'));
+        setStatus(`Gönderim servisi yanıt vermedi. <a href="mailto:${fallbackEmail}?subject=${subject}&body=${body}" style="color:inherit;border-bottom:1px solid currentColor">E-posta uygulamasıyla gönder</a>.`, '#9b2f1f');
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.innerHTML = originalButtonHtml;
+        }
+      }
+    });
+  }
+
 });
