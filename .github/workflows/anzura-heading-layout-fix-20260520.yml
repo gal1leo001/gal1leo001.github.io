@@ -1,0 +1,51 @@
+name: ANZURA heading layout fix
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.codex-trigger/heading-layout-fix-20260520-0958.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore heading layout without section numbers
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          pattern = re.compile(r'(<header class="head-v2(?: [^"]*)?">\n)(?!\s*<span class="head-num")')
+          text = pattern.sub(r'\1          <span class="head-num" aria-hidden="true"></span>\n', text)
+          text = re.sub(r'<span class="head-num" aria-hidden="true">\s*§[^<]*</span>', '<span class="head-num" aria-hidden="true"></span>', text)
+          text = re.sub(r'<span class="head-num">\s*§[^<]*</span>', '<span class="head-num" aria-hidden="true"></span>', text)
+          path.write_text(text, encoding='utf-8')
+          if '§' in text:
+              raise SystemExit('section sign still present')
+          if '<header class="head-v2 reveal">\n          <h2 class="head-title"' in text:
+              raise SystemExit('heading placeholder missing')
+          PY
+
+      - name: Commit heading layout fix
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Restore heading layout after removing numbers"
+          git push
