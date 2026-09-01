@@ -1,11 +1,14 @@
-﻿/* ============================================
+/* ============================================
    ANZURA v2 - Editorial upgrade layer
    Loaded AFTER styles.css, overrides where needed
    ============================================ */
 
+:root {
+  --site-chrome-height: 118px;
+}
+
 body.v2 {
   background: var(--paper);
-  --site-chrome-height: 118px;
 }
 
 /* Top bar adds coords */
@@ -828,8 +831,31 @@ body.v2 .top-bar-meta .coords {
 
 @media (max-width: 768px) {
   .hero-v2 {
-    min-height: calc(100svh - var(--site-chrome-height));
-    height: calc(100svh - var(--site-chrome-height));
+    min-height: 0;
+    height: auto;
+    background: #f1ede4;
+  }
+  .hero-v2 .hero-media--intro {
+    position: relative;
+    inset: auto;
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+  .hero-v2-shell--minimal {
+    position: relative;
+    inset: auto;
+    display: flex;
+    justify-content: flex-end;
+    min-height: 0;
+    padding: 20px var(--gutter) 28px;
+  }
+  .hero-v2-actions--corner {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    align-items: flex-end;
   }
   .hero-v2-title .l2,
   .hero-v2-title .l3 { padding-left: 0; }
@@ -1007,7 +1033,6 @@ body.v2 .top-bar-meta .coords {
 /* Mobile embed hardening for Wix iframes and narrow phones. */
 @media (max-width: 768px), (max-device-width: 768px) {
   body.v2 {
-    --site-chrome-height: 96px;
     min-width: 0;
     overflow-x: hidden;
   }
@@ -1053,65 +1078,54 @@ body.v2 .top-bar-meta .coords {
   }
 
   body.v2 .hero-v2 {
-    min-height: calc(100svh - var(--site-chrome-height));
-    height: calc(100svh - var(--site-chrome-height));
-    background:
-      linear-gradient(180deg, rgba(14, 23, 20, 0.22), rgba(14, 23, 20, 0.76)),
-      url("assets/hero-mining.jpg") center / cover no-repeat #12201b;
+    min-height: 0;
+    height: auto;
+    background: #f1ede4;
   }
 
   body.v2 .hero-v2 .hero-media--intro {
-    --mobile-intro-height: 100%;
-    top: 0;
-    bottom: auto;
-    height: var(--mobile-intro-height);
+    position: relative;
+    inset: auto;
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
   }
 
   body.v2 .hero-v2:has(.hero-v2-shell--minimal) .hero-v2-overlay,
   body.v2 .hero-v2:has(.hero-v2-shell--minimal) .hero-v2-grid {
-    display: block;
+    display: none;
   }
 
-  body.v2 .hero-v2-shell--minimal::before,
-  body.v2 .hero-v2-shell--minimal::after {
-    position: absolute;
-    left: 18px;
-    right: 18px;
-    color: #fff;
-    text-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
+  body.v2 .hero-v2-shell--minimal {
+    position: relative;
+    inset: auto;
+    display: flex;
+    justify-content: flex-end;
+    min-height: 0;
+    padding: 20px var(--gutter) 28px;
   }
 
   body.v2 .hero-v2-shell--minimal::before {
-    content: "ANZURA";
-    top: 30%;
-    font-family: "Cormorant Garamond", serif;
-    font-size: clamp(56px, 16vw, 78px);
-    font-weight: 700;
-    letter-spacing: 0;
-    line-height: 0.92;
+    content: none;
   }
 
   body.v2 .hero-v2-shell--minimal::after {
-    content: "MADENCILIK VE MUHENDISLIK A.S.";
-    top: calc(30% + 76px);
-    max-width: 280px;
-    font-family: "JetBrains Mono", monospace;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    line-height: 1.45;
+    content: none;
   }
 
   body.v2 .hero-v2-actions--corner {
-    left: 18px;
-    right: 18px;
-    bottom: 18px;
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    margin-left: auto;
     flex-direction: column;
-    align-items: stretch;
+    align-items: flex-end;
   }
 
   body.v2 .hero-v2-actions--corner .btn {
-    width: 100%;
+    width: max-content;
     min-height: 48px;
     justify-content: center;
     text-align: center;
