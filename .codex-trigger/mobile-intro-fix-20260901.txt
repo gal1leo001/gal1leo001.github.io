@@ -1,1 +1,0 @@
-trigger mobile intro scaling fix 2026-09-01
