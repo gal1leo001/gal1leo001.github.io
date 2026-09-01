@@ -1133,3 +1133,57 @@ body.v2 .top-bar-meta .coords {
   }
 }
 
+/* Touch portrait fallback for mobile browsers using desktop-site mode. */
+@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+  body.v2 .hero-v2 {
+    min-height: 0;
+    height: auto;
+    background: #f1ede4;
+  }
+
+  body.v2 .hero-v2 .hero-media--intro {
+    position: relative;
+    inset: auto;
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+
+  body.v2 .hero-v2:has(.hero-v2-shell--minimal) .hero-v2-overlay,
+  body.v2 .hero-v2:has(.hero-v2-shell--minimal) .hero-v2-grid {
+    display: none;
+  }
+
+  body.v2 .hero-v2-shell--minimal {
+    position: relative;
+    inset: auto;
+    display: flex;
+    justify-content: flex-end;
+    min-height: 0;
+    padding: 20px var(--gutter) 28px;
+  }
+
+  body.v2 .hero-v2-shell--minimal::before,
+  body.v2 .hero-v2-shell--minimal::after {
+    content: none;
+  }
+
+  body.v2 .hero-v2-actions--corner {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    margin-left: auto;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  body.v2 .hero-v2-actions--corner .btn {
+    width: max-content;
+    min-height: 48px;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+  }
+}
